@@ -1,0 +1,29 @@
+USE PLAYASSET;
+
+-- TMP_NEWS_TITLE(임시뉴스제목테이블)
+CREATE TABLE TMP_NEWS_TITLE (
+	idx INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	title VARCHAR(500) NOT NULL
+);
+
+-- TMP_NEWS_TITLE(임시뉴스제목테이블) 테스트데이터 INSERT 20ROWS
+INSERT INTO TMP_NEWS_TITLE SET title = '스타트업 혹한기에도 채용은 분주… 개발 인재 확보 속도 낸다';
+INSERT INTO TMP_NEWS_TITLE SET title = '삼성 롤러블폰 특허…빈 수레 아니었다';
+INSERT INTO TMP_NEWS_TITLE SET title = '글로벌 경제 적신호에…5대그룹 총수들 해외로 나간다';
+INSERT INTO TMP_NEWS_TITLE SET title = '삼성 OLED TV, 화질 이정도?…패널 제조사 알고보니 [비즈360]';
+INSERT INTO TMP_NEWS_TITLE SET title = '아이폰14에 갤럭시Z4, e심까지…5G 가입자 날개달까';
+INSERT INTO TMP_NEWS_TITLE SET title = '지난 설엔 지갑 두둑했는데…금리·물가 폭등에 봉급쟁이들 보릿고개 추석';
+INSERT INTO TMP_NEWS_TITLE SET title = '이 주식 사려고 연기금은 삼성전자 팔았다…최애주는?';
+INSERT INTO TMP_NEWS_TITLE SET title = '반도체 인력난에 계약학과 확대...효과·영향 살펴야 진단도';
+INSERT INTO TMP_NEWS_TITLE SET title = '삼성 스마트싱스 성공 이것에 달렸다';
+INSERT INTO TMP_NEWS_TITLE SET title = '삼성전자도 영향?…바이든 美 지원받는 기업, 中투자시 자금 회수';
+INSERT INTO TMP_NEWS_TITLE SET title = '삼성 어쩌나…믿는 구석 퀄컴마저 TSMC로 떠날 판';
+INSERT INTO TMP_NEWS_TITLE SET title = '3분기 반도체업계 수익성 악화 전망…삼성・SK하이닉스 투자・신기술로 극복';
+INSERT INTO TMP_NEWS_TITLE SET title = '연기금, 삼전 팔고 LG엔솔 샀다...순매수 5조 육박';
+INSERT INTO TMP_NEWS_TITLE SET title = '대기업 하반기 공채 서류접수…3고·수시 증가에 좁아진 채용문';
+INSERT INTO TMP_NEWS_TITLE SET title = '한국투자증권, 2차전지 3분기부터 판가상승 수혜 기대';
+INSERT INTO TMP_NEWS_TITLE SET title = '무역 적자 최대인데, 경상수지는 흑자?… 헷갈리는 무역 통계 읽는 법 [5Q경제]';
+INSERT INTO TMP_NEWS_TITLE SET title = '대통령 특사 이재용, 멕시코 대통령 만나 부산엑스포 지지 요청';
+INSERT INTO TMP_NEWS_TITLE SET title = '한국산 전기차 보조금 제외하더니…美바이든 \中 투자하면 지원금 회수';
+INSERT INTO TMP_NEWS_TITLE SET title = '반도체 첨단 공정 웨이퍼 나르는 로봇 가격이…중형차 풀옵션 1대값’ [비즈360]';
+INSERT INTO TMP_NEWS_TITLE SET title = '[뒷북비즈] 떠오르는 게이머 시장 잡아라…삼성·LG 신제품 맞대결';
