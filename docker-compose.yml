@@ -1,0 +1,123 @@
+﻿services:
+  playasset-db:
+    image: mysql:8.0
+    container_name: playasset-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: playasset_core
+      TZ: Asia/Seoul
+    ports:
+      - "3306:3306"
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+    volumes:
+      - playasset-mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  playasset-redis:
+    image: redis:7.2-alpine
+    container_name: playasset-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - playasset-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  playasset-kafka:
+    image: apache/kafka:3.8.1
+    container_name: playasset-kafka
+    restart: unless-stopped
+    ports:
+      - "9092:9092"
+    environment:
+      CLUSTER_ID: "5L6g3nShT-eMCtK--X86sw"
+      KAFKA_NODE_ID: "1"
+      KAFKA_PROCESS_ROLES: "broker,controller"
+      KAFKA_LISTENERS: "PLAINTEXT://:9092,CONTROLLER://:9093"
+      KAFKA_ADVERTISED_LISTENERS: "PLAINTEXT://playasset-kafka:9092"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT"
+      KAFKA_CONTROLLER_LISTENER_NAMES: "CONTROLLER"
+      KAFKA_CONTROLLER_QUORUM_VOTERS: "1@playasset-kafka:9093"
+      KAFKA_INTER_BROKER_LISTENER_NAME: "PLAINTEXT"
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "1"
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "1"
+    volumes:
+      - playasset-kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 8s
+      retries: 10
+
+  playasset-kafka-ui:
+    image: provectuslabs/kafka-ui:v0.7.2
+    container_name: playasset-kafka-ui
+    restart: unless-stopped
+    depends_on:
+      playasset-kafka:
+        condition: service_started
+    environment:
+      KAFKA_CLUSTERS_0_NAME: "playasset-local"
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: "playasset-kafka:9092"
+    ports:
+      - "9090:8080"
+
+  playasset-server:
+    build:
+      context: ./Server/playasset
+      dockerfile: Dockerfile
+    container_name: playasset-server
+    restart: unless-stopped
+    depends_on:
+      playasset-db:
+        condition: service_healthy
+      playasset-redis:
+        condition: service_healthy
+      playasset-kafka:
+        condition: service_started
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      DB_HOST: playasset-db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: root
+      DB_NAME: playasset_core
+      REDIS_HOST: playasset-redis
+      REDIS_PORT: 6379
+      APP_KAFKA_BOOTSTRAP_SERVERS: playasset-kafka:9092
+      EXTERNAL_MARKET_API_KEY: ""
+      EXTERNAL_NEWS_API_KEY: ""
+      APP_WEB_CORS_ALLOWED_ORIGINS: "http://localhost:3000,http://127.0.0.1:3000"
+    ports:
+      - "8081:8080"
+
+  playasset-web:
+    build:
+      context: ./UI/playasset_flutter
+      dockerfile: Dockerfile
+    container_name: playasset-web
+    restart: unless-stopped
+    depends_on:
+      playasset-server:
+        condition: service_started
+    ports:
+      - "3000:80"
+
+volumes:
+  playasset-mysql-data:
+  playasset-redis-data:
+  playasset-kafka-data:

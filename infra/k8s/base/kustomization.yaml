@@ -1,0 +1,15 @@
+﻿apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: playasset
+resources:
+  - namespace.yaml
+  - app-config.yaml
+  - app-secret.yaml
+  - mysql.yaml
+  - redis.yaml
+  - kafka.yaml
+  - kafka-ui.yaml
+  - server.yaml
+  - web.yaml
+  - portfolio-service.yaml
+  - ingress.yaml

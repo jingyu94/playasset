@@ -1,5 +1,7 @@
 package com.assetinfo.playasset.task.user.svc;
 
+import java.util.List;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -7,9 +9,6 @@ import org.springframework.stereotype.Service;
 
 import com.assetinfo.playasset.task.user.dao.UserDao;
 import com.assetinfo.playasset.task.user.entity.UserEntity;
-
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 @Service
 public class UserSvcImpl implements UserSvc {
@@ -20,12 +19,12 @@ public class UserSvcImpl implements UserSvc {
     private Logger logger = LoggerFactory.getLogger(UserSvc.class);
 
     @Override
-    public Flux<UserEntity> findAll() {
+    public List<UserEntity> findAll() {
         return userDao.findAll();
     }
 
     @Override
-    public Mono<UserEntity> findOne() {
+    public UserEntity findOne() {
         return userDao.findOne();
     }
 }

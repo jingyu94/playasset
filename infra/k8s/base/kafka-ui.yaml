@@ -1,0 +1,41 @@
+﻿apiVersion: v1
+kind: Service
+metadata:
+  name: playasset-kafka-ui
+  namespace: playasset
+spec:
+  selector:
+    app: playasset-kafka-ui
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: playasset-kafka-ui
+  namespace: playasset
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: playasset-kafka-ui
+  template:
+    metadata:
+      labels:
+        app: playasset-kafka-ui
+    spec:
+      containers:
+        - name: kafka-ui
+          image: provectuslabs/kafka-ui:v0.7.2
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: KAFKA_CLUSTERS_0_NAME
+              value: playasset
+            - name: KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+              value: playasset-kafka:9092
+            - name: DYNAMIC_CONFIG_ENABLED
+              value: "true"

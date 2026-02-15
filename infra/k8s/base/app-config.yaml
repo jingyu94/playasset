@@ -1,0 +1,17 @@
+﻿apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: playasset-app-config
+  namespace: playasset
+data:
+  SERVER_HOST: "0.0.0.0"
+  SERVER_PORT: "8080"
+  DB_HOST: "playasset-mysql"
+  DB_PORT: "3306"
+  DB_NAME: "playasset_core"
+  REDIS_HOST: "playasset-redis"
+  REDIS_PORT: "6379"
+  APP_KAFKA_BOOTSTRAP_SERVERS: "playasset-kafka:9092"
+  APP_WEB_CORS_ALLOWED_ORIGINS: "https://app.example.com"
+  EXTERNAL_MARKET_BASE_URL: ""
+  EXTERNAL_NEWS_BASE_URL: ""

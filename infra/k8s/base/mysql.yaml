@@ -1,0 +1,78 @@
+﻿apiVersion: v1
+kind: Secret
+metadata:
+  name: playasset-mysql-secret
+  namespace: playasset
+type: Opaque
+stringData:
+  MYSQL_ROOT_PASSWORD: change-me
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: playasset-mysql
+  namespace: playasset
+spec:
+  selector:
+    app: playasset-mysql
+  ports:
+    - name: mysql
+      port: 3306
+      targetPort: 3306
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: playasset-mysql
+  namespace: playasset
+spec:
+  serviceName: playasset-mysql
+  replicas: 1
+  selector:
+    matchLabels:
+      app: playasset-mysql
+  template:
+    metadata:
+      labels:
+        app: playasset-mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.0
+          args:
+            - --character-set-server=utf8mb4
+            - --collation-server=utf8mb4_general_ci
+          ports:
+            - containerPort: 3306
+              name: mysql
+          env:
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: playasset-mysql-secret
+                  key: MYSQL_ROOT_PASSWORD
+            - name: MYSQL_DATABASE
+              value: playasset_core
+            - name: TZ
+              value: Asia/Seoul
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "mysqladmin ping -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD"]
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          volumeMounts:
+            - name: mysql-data
+              mountPath: /var/lib/mysql
+  volumeClaimTemplates:
+    - metadata:
+        name: mysql-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi

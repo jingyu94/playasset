@@ -1,0 +1,63 @@
+﻿apiVersion: v1
+kind: Service
+metadata:
+  name: playasset-redis
+  namespace: playasset
+spec:
+  selector:
+    app: playasset-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: playasset-redis-data
+  namespace: playasset
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: playasset-redis
+  namespace: playasset
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: playasset-redis
+  template:
+    metadata:
+      labels:
+        app: playasset-redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7.2-alpine
+          args: ["redis-server", "--appendonly", "yes"]
+          ports:
+            - containerPort: 6379
+              name: redis
+          readinessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 6379
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: playasset-redis-data

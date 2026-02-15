@@ -1,14 +1,13 @@
 package com.assetinfo.playasset.task.stock.svc;
 
+import java.util.List;
 import java.util.Map;
 
 import com.assetinfo.playasset.task.stock.entity.StockEntity;
 import com.assetinfo.playasset.task.stock.entity.TmpNewsEntity;
 
-import reactor.core.publisher.Flux;
-
 public interface StockSvc {
-    public Flux<StockEntity> findAll();
-    public Flux<TmpNewsEntity> findAllTmpNews(String keywords);
-    public Map<String, Object> getStockEvaulation();
+    List<StockEntity> findAll();
+    List<TmpNewsEntity> findAllTmpNews(String keywords);
+    Map<String, Object> getStockEvaulation();
 }

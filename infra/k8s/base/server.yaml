@@ -1,0 +1,59 @@
+﻿apiVersion: v1
+kind: Service
+metadata:
+  name: playasset-server
+  namespace: playasset
+spec:
+  selector:
+    app: playasset-server
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: playasset-server
+  namespace: playasset
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: playasset-server
+  template:
+    metadata:
+      labels:
+        app: playasset-server
+    spec:
+      containers:
+        - name: server
+          image: ghcr.io/REPLACE_ORG/playasset-server:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: http
+          envFrom:
+            - configMapRef:
+                name: playasset-app-config
+            - secretRef:
+                name: playasset-app-secret
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 40
+            periodSeconds: 15
+          resources:
+            requests:
+              cpu: "300m"
+              memory: "512Mi"
+            limits:
+              cpu: "1500m"
+              memory: "2048Mi"

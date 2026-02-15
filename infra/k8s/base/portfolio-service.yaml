@@ -1,0 +1,50 @@
+﻿apiVersion: v1
+kind: Service
+metadata:
+  name: playasset-portfolio-service
+  namespace: playasset
+spec:
+  selector:
+    app: playasset-portfolio-service
+  ports:
+    - name: http
+      port: 8090
+      targetPort: 8090
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: playasset-portfolio-service
+  namespace: playasset
+spec:
+  replicas: 0
+  selector:
+    matchLabels:
+      app: playasset-portfolio-service
+  template:
+    metadata:
+      labels:
+        app: playasset-portfolio-service
+    spec:
+      containers:
+        - name: portfolio-service
+          image: ghcr.io/REPLACE_ORG/playasset-portfolio-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8090
+              name: http
+          env:
+            - name: SERVER_PORT
+              value: "8090"
+          envFrom:
+            - configMapRef:
+                name: playasset-app-config
+            - secretRef:
+                name: playasset-app-secret
+          resources:
+            requests:
+              cpu: "150m"
+              memory: "256Mi"
+            limits:
+              cpu: "1000m"
+              memory: "1024Mi"
