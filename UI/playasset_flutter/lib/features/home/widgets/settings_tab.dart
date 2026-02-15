@@ -1,13 +1,17 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/config/app_env.dart';
+import '../home_providers.dart';
 import 'complementary_accent.dart';
 
-class SettingsTab extends StatelessWidget {
+class SettingsTab extends ConsumerWidget {
   const SettingsTab({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(sessionControllerProvider).session;
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
       children: [
@@ -26,6 +30,18 @@ class SettingsTab extends StatelessWidget {
         const SizedBox(height: 8),
         const Text('외부 API 키는 비워둔 상태입니다. 배포 환경에서만 시크릿으로 주입하세요.', style: TextStyle(color: Color(0xFF91A0BC))),
         const SizedBox(height: 16),
+        if (session != null) ...[
+          _KeyCard(title: '로그인 사용자', value: '${session.displayName} (${session.loginId})', hint: '권한: ${session.roles.join(', ')}'),
+          const SizedBox(height: 12),
+          FilledButton.icon(
+            onPressed: () async {
+              await ref.read(sessionControllerProvider.notifier).logout();
+            },
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('로그아웃'),
+          ),
+          const SizedBox(height: 12),
+        ],
         _KeyCard(title: '백엔드 API', value: AppEnv.apiBaseUrl, hint: 'dart-define: API_BASE_URL'),
         const SizedBox(height: 12),
         _KeyCard(title: 'Market API Key', value: AppEnv.externalMarketApiKey.isEmpty ? '미설정' : '설정됨', hint: 'EXTERNAL_MARKET_API_KEY'),

@@ -17,6 +17,8 @@ import com.assetinfo.playasset.api.v1.repository.PlatformQueryRepository;
 import com.assetinfo.playasset.api.v1.repository.PlatformQueryRepository.CandleUpsertCommand;
 import com.assetinfo.playasset.api.v1.service.PlatformCacheEvictService;
 import com.assetinfo.playasset.config.ExternalProviderProperties;
+import com.assetinfo.playasset.api.v1.quota.PaidServiceKeys;
+import com.assetinfo.playasset.api.v1.quota.PaidServiceQuotaService;
 
 @Component
 public class MarketNewsBatchService {
@@ -26,14 +28,17 @@ public class MarketNewsBatchService {
     private final PlatformQueryRepository repository;
     private final ExternalProviderProperties providerProperties;
     private final PlatformCacheEvictService cacheEvictService;
+    private final PaidServiceQuotaService quotaService;
 
     public MarketNewsBatchService(
             PlatformQueryRepository repository,
             ExternalProviderProperties providerProperties,
-            PlatformCacheEvictService cacheEvictService) {
+            PlatformCacheEvictService cacheEvictService,
+            PaidServiceQuotaService quotaService) {
         this.repository = repository;
         this.providerProperties = providerProperties;
         this.cacheEvictService = cacheEvictService;
+        this.quotaService = quotaService;
     }
 
     @Scheduled(
@@ -43,6 +48,7 @@ public class MarketNewsBatchService {
         LocalDateTime startedAt = LocalDateTime.now();
         String sourceKey = providerProperties.getMarket().getApiKey().isBlank() ? "SYNTHETIC" : "EXTERNAL_API";
         try {
+            quotaService.consume(PaidServiceKeys.MARKET_BATCH_REFRESH);
             List<Long> assetIds = repository.findAllAssetIds();
             List<CandleUpsertCommand> commands = new ArrayList<>();
             LocalDateTime candleTime = LocalDateTime.now().truncatedTo(ChronoUnit.DAYS);
@@ -106,6 +112,7 @@ public class MarketNewsBatchService {
         LocalDateTime startedAt = LocalDateTime.now();
         String sourceKey = providerProperties.getNews().getApiKey().isBlank() ? "SYNTHETIC" : "EXTERNAL_API";
         try {
+            quotaService.consume(PaidServiceKeys.NEWS_BATCH_REFRESH);
             List<Long> assetIds = repository.findAllAssetIds();
             if (assetIds.isEmpty()) {
                 return;

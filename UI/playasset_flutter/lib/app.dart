@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/theme/app_theme.dart';
+import 'features/auth/login_page.dart';
+import 'features/home/home_providers.dart';
 import 'features/home/home_shell.dart';
 
-class PlayAssetApp extends StatelessWidget {
+class PlayAssetApp extends ConsumerWidget {
   const PlayAssetApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(sessionControllerProvider);
+
     return MaterialApp(
       title: 'PlayAsset',
       theme: AppTheme.lightTheme(),
       debugShowCheckedModeBanner: false,
-      home: const HomeShell(),
+      home: session.isAuthenticated ? const HomeShell() : const LoginPage(),
     );
   }
 }

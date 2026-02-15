@@ -474,3 +474,94 @@ class SimulationContributionData {
     );
   }
 }
+
+class LoginSessionData {
+  LoginSessionData({
+    required this.accessToken,
+    required this.tokenType,
+    required this.expiresAt,
+    required this.userId,
+    required this.loginId,
+    required this.displayName,
+    required this.roles,
+  });
+
+  final String accessToken;
+  final String tokenType;
+  final String expiresAt;
+  final int userId;
+  final String loginId;
+  final String displayName;
+  final List<String> roles;
+
+  bool get isAdmin => roles.contains('ADMIN');
+
+  factory LoginSessionData.fromJson(Map<String, dynamic> json) {
+    return LoginSessionData(
+      accessToken: json['accessToken'] as String,
+      tokenType: json['tokenType'] as String? ?? 'Bearer',
+      expiresAt: json['expiresAt'] as String,
+      userId: json['userId'] as int,
+      loginId: json['loginId'] as String,
+      displayName: json['displayName'] as String,
+      roles: (json['roles'] as List<dynamic>).map((e) => e as String).toList(),
+    );
+  }
+}
+
+class PaidServicePolicyData {
+  PaidServicePolicyData({
+    required this.serviceKey,
+    required this.displayName,
+    required this.dailyLimit,
+    required this.enabled,
+    required this.usedToday,
+    required this.remainingToday,
+  });
+
+  final String serviceKey;
+  final String displayName;
+  final int dailyLimit;
+  final bool enabled;
+  final int usedToday;
+  final int remainingToday;
+
+  factory PaidServicePolicyData.fromJson(Map<String, dynamic> json) {
+    return PaidServicePolicyData(
+      serviceKey: json['serviceKey'] as String,
+      displayName: json['displayName'] as String,
+      dailyLimit: json['dailyLimit'] as int,
+      enabled: json['enabled'] as bool,
+      usedToday: json['usedToday'] as int,
+      remainingToday: json['remainingToday'] as int,
+    );
+  }
+}
+
+class AdminUserData {
+  AdminUserData({
+    required this.userId,
+    required this.loginId,
+    required this.displayName,
+    required this.status,
+    required this.roles,
+  });
+
+  final int userId;
+  final String loginId;
+  final String displayName;
+  final String status;
+  final List<String> roles;
+
+  bool get isAdmin => roles.contains('ADMIN');
+
+  factory AdminUserData.fromJson(Map<String, dynamic> json) {
+    return AdminUserData(
+      userId: json['userId'] as int,
+      loginId: json['loginId'] as String,
+      displayName: json['displayName'] as String,
+      status: json['status'] as String,
+      roles: (json['roles'] as List<dynamic>).map((e) => e as String).toList(),
+    );
+  }
+}

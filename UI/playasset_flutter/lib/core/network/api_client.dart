@@ -1,19 +1,52 @@
-﻿import 'package:dio/dio.dart';
+import 'package:dio/dio.dart';
 
 import '../config/app_env.dart';
 import '../models/dashboard_models.dart';
 
 class PlayAssetApiClient {
-  PlayAssetApiClient()
+  PlayAssetApiClient({String? accessToken})
       : _dio = Dio(
           BaseOptions(
             baseUrl: AppEnv.apiBaseUrl,
             connectTimeout: const Duration(seconds: 4),
             receiveTimeout: const Duration(seconds: 4),
+            headers: accessToken == null ? null : {'Authorization': 'Bearer $accessToken'},
           ),
         );
 
   final Dio _dio;
+
+  Future<LoginSessionData> login({
+    required String loginId,
+    required String password,
+  }) async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/v1/auth/login',
+      data: {
+        'loginId': loginId,
+        'password': password,
+      },
+    );
+    return LoginSessionData.fromJson(_extractData(response.data));
+  }
+
+  Future<void> logout() async {
+    await _dio.post<Map<String, dynamic>>('/v1/auth/logout');
+  }
+
+  Future<LoginSessionData> fetchMe() async {
+    final response = await _dio.get<Map<String, dynamic>>('/v1/auth/me');
+    final data = _extractData(response.data);
+    return LoginSessionData(
+      accessToken: '',
+      tokenType: 'Bearer',
+      expiresAt: '',
+      userId: data['userId'] as int,
+      loginId: data['loginId'] as String,
+      displayName: data['displayName'] as String,
+      roles: (data['roles'] as List<dynamic>).map((e) => e as String).toList(),
+    );
+  }
 
   Future<DashboardData> fetchDashboard(int userId) async {
     final response = await _dio.get<Map<String, dynamic>>('/v1/users/$userId/dashboard');
@@ -60,6 +93,49 @@ class PlayAssetApiClient {
       queryParameters: query,
     );
     return PortfolioSimulationData.fromJson(_extractData(response.data));
+  }
+
+  Future<List<PaidServicePolicyData>> fetchPaidServicePolicies({String? date}) async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/v1/admin/paid-services/policies',
+      queryParameters: date == null ? null : {'date': date},
+    );
+    final payload = _extractListData(response.data);
+    return payload.map(PaidServicePolicyData.fromJson).toList();
+  }
+
+  Future<PaidServicePolicyData> updatePaidServicePolicy({
+    required String serviceKey,
+    required String displayName,
+    required int dailyLimit,
+    required bool enabled,
+  }) async {
+    final response = await _dio.put<Map<String, dynamic>>(
+      '/v1/admin/paid-services/policies/$serviceKey',
+      data: {
+        'displayName': displayName,
+        'dailyLimit': dailyLimit,
+        'enabled': enabled,
+      },
+    );
+    return PaidServicePolicyData.fromJson(_extractData(response.data));
+  }
+
+  Future<List<AdminUserData>> fetchAdminUsers() async {
+    final response = await _dio.get<Map<String, dynamic>>('/v1/admin/users');
+    final payload = _extractListData(response.data);
+    return payload.map(AdminUserData.fromJson).toList();
+  }
+
+  Future<AdminUserData> updateUserRoles({
+    required int userId,
+    required List<String> roles,
+  }) async {
+    final response = await _dio.put<Map<String, dynamic>>(
+      '/v1/admin/users/$userId/roles',
+      data: {'roles': roles},
+    );
+    return AdminUserData.fromJson(_extractData(response.data));
   }
 
   Map<String, dynamic> _extractData(Map<String, dynamic>? root) {

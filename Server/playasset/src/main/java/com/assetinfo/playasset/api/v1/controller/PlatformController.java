@@ -20,6 +20,9 @@ import com.assetinfo.playasset.api.v1.dto.PortfolioAdviceResponse;
 import com.assetinfo.playasset.api.v1.dto.PortfolioSimulationResponse;
 import com.assetinfo.playasset.api.v1.dto.PositionSnapshot;
 import com.assetinfo.playasset.api.v1.dto.WatchlistItemResponse;
+import com.assetinfo.playasset.api.v1.auth.Authz;
+import com.assetinfo.playasset.api.v1.quota.PaidServiceKeys;
+import com.assetinfo.playasset.api.v1.quota.PaidServiceQuotaService;
 import com.assetinfo.playasset.api.v1.service.PlatformService;
 
 import jakarta.validation.Valid;
@@ -30,23 +33,31 @@ import jakarta.validation.Valid;
 public class PlatformController {
 
     private final PlatformService platformService;
+    private final PaidServiceQuotaService quotaService;
 
-    public PlatformController(PlatformService platformService) {
+    public PlatformController(PlatformService platformService, PaidServiceQuotaService quotaService) {
         this.platformService = platformService;
+        this.quotaService = quotaService;
     }
 
     @GetMapping("/dashboard")
     public ApiResponse<DashboardResponse> dashboard(@PathVariable long userId) {
+        Authz.requireUserOrAdmin(userId);
+        quotaService.consume(PaidServiceKeys.DASHBOARD_READ);
         return ApiResponse.ok(platformService.getDashboard(userId));
     }
 
     @GetMapping("/portfolio/positions")
     public ApiResponse<List<PositionSnapshot>> positions(@PathVariable long userId) {
+        Authz.requireUserOrAdmin(userId);
+        quotaService.consume(PaidServiceKeys.POSITIONS_READ);
         return ApiResponse.ok(platformService.getPositions(userId));
     }
 
     @GetMapping("/portfolio/advice")
     public ApiResponse<PortfolioAdviceResponse> portfolioAdvice(@PathVariable long userId) {
+        Authz.requireUserOrAdmin(userId);
+        quotaService.consume(PaidServiceKeys.PORTFOLIO_ADVICE);
         return ApiResponse.ok(platformService.getPortfolioAdvice(userId));
     }
 
@@ -55,11 +66,15 @@ public class PlatformController {
             @PathVariable long userId,
             @RequestParam(name = "startDate", required = false) String startDate,
             @RequestParam(name = "endDate", required = false) String endDate) {
+        Authz.requireUserOrAdmin(userId);
+        quotaService.consume(PaidServiceKeys.PORTFOLIO_SIMULATION);
         return ApiResponse.ok(platformService.getPortfolioSimulation(userId, startDate, endDate));
     }
 
     @GetMapping("/watchlist")
     public ApiResponse<List<WatchlistItemResponse>> watchlist(@PathVariable long userId) {
+        Authz.requireUserOrAdmin(userId);
+        quotaService.consume(PaidServiceKeys.WATCHLIST_READ);
         return ApiResponse.ok(platformService.getWatchlist(userId));
     }
 
@@ -67,6 +82,8 @@ public class PlatformController {
     public ApiResponse<List<AlertResponse>> alerts(
             @PathVariable long userId,
             @RequestParam(name = "limit", defaultValue = "20") int limit) {
+        Authz.requireUserOrAdmin(userId);
+        quotaService.consume(PaidServiceKeys.ALERTS_READ);
         return ApiResponse.ok(platformService.getAlerts(userId, limit));
     }
 
@@ -74,6 +91,7 @@ public class PlatformController {
     public ApiResponse<CreateTransactionResponse> createTransaction(
             @PathVariable long userId,
             @Valid @RequestBody CreateTransactionRequest request) {
+        Authz.requireUserOrAdmin(userId);
         return ApiResponse.ok(platformService.createTransaction(userId, request));
     }
 }

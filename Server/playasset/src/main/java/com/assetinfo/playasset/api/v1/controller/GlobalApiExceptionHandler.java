@@ -11,6 +11,10 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.assetinfo.playasset.api.v1.auth.ForbiddenException;
+import com.assetinfo.playasset.api.v1.auth.UnauthorizedException;
+import com.assetinfo.playasset.api.v1.quota.PaidServiceLimitExceededException;
+
 @RestControllerAdvice
 public class GlobalApiExceptionHandler {
 
@@ -34,6 +38,36 @@ public class GlobalApiExceptionHandler {
         body.put("error", "BAD_REQUEST");
         body.put("message", ex.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<Map<String, Object>> handleUnauthorized(UnauthorizedException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("timestamp", Instant.now().toString());
+        body.put("error", "UNAUTHORIZED");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<Map<String, Object>> handleForbidden(ForbiddenException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("timestamp", Instant.now().toString());
+        body.put("error", "FORBIDDEN");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+    }
+
+    @ExceptionHandler(PaidServiceLimitExceededException.class)
+    public ResponseEntity<Map<String, Object>> handlePaidServiceLimit(PaidServiceLimitExceededException ex) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("success", false);
+        body.put("timestamp", Instant.now().toString());
+        body.put("error", "PAYWALL_LIMIT_EXCEEDED");
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(body);
     }
 
     @ExceptionHandler(DateTimeParseException.class)
