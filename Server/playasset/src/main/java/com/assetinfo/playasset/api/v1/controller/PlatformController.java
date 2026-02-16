@@ -3,6 +3,7 @@ package com.assetinfo.playasset.api.v1.controller;
 import java.util.List;
 
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,10 +19,12 @@ import com.assetinfo.playasset.api.v1.dto.ApiResponse;
 import com.assetinfo.playasset.api.v1.dto.CreateTransactionRequest;
 import com.assetinfo.playasset.api.v1.dto.CreateTransactionResponse;
 import com.assetinfo.playasset.api.v1.dto.DashboardResponse;
+import com.assetinfo.playasset.api.v1.dto.InvestmentProfileResponse;
 import com.assetinfo.playasset.api.v1.dto.PortfolioAdviceResponse;
 import com.assetinfo.playasset.api.v1.dto.PortfolioSimulationResponse;
 import com.assetinfo.playasset.api.v1.dto.PositionSnapshot;
 import com.assetinfo.playasset.api.v1.dto.UpdateAlertPreferenceRequest;
+import com.assetinfo.playasset.api.v1.dto.UpsertInvestmentProfileRequest;
 import com.assetinfo.playasset.api.v1.dto.WatchlistItemResponse;
 import com.assetinfo.playasset.api.v1.auth.Authz;
 import com.assetinfo.playasset.api.v1.quota.PaidServiceKeys;
@@ -79,6 +82,26 @@ public class PlatformController {
         Authz.requireUserOrAdmin(userId);
         quotaService.consume(PaidServiceKeys.WATCHLIST_READ);
         return ApiResponse.ok(platformService.getWatchlist(userId));
+    }
+
+    @GetMapping("/investment-profile")
+    public ApiResponse<InvestmentProfileResponse> investmentProfile(@PathVariable long userId) {
+        Authz.requireUserOrAdmin(userId);
+        return ApiResponse.ok(platformService.getInvestmentProfile(userId));
+    }
+
+    @PutMapping("/investment-profile")
+    public ApiResponse<InvestmentProfileResponse> upsertInvestmentProfile(
+            @PathVariable long userId,
+            @Valid @RequestBody UpsertInvestmentProfileRequest request) {
+        Authz.requireUserOrAdmin(userId);
+        return ApiResponse.ok(platformService.upsertInvestmentProfile(userId, request));
+    }
+
+    @DeleteMapping("/investment-profile")
+    public ApiResponse<Boolean> deleteInvestmentProfile(@PathVariable long userId) {
+        Authz.requireUserOrAdmin(userId);
+        return ApiResponse.ok(platformService.deleteInvestmentProfile(userId));
     }
 
     @GetMapping("/alerts")

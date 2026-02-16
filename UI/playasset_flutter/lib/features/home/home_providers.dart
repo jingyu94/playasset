@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -160,6 +161,36 @@ final sessionControllerProvider =
   return SessionController();
 });
 
+class ThemeModeController extends StateNotifier<ThemeMode> {
+  ThemeModeController() : super(ThemeMode.dark) {
+    _restoreThemeMode();
+  }
+
+  static const _storageKey = 'playasset.theme_mode.v1';
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    if (state == mode) return;
+    state = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_storageKey, mode.name);
+  }
+
+  Future<void> _restoreThemeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_storageKey);
+    if (raw == ThemeMode.light.name) {
+      state = ThemeMode.light;
+      return;
+    }
+    state = ThemeMode.dark;
+  }
+}
+
+final themeModeProvider =
+    StateNotifierProvider<ThemeModeController, ThemeMode>((ref) {
+  return ThemeModeController();
+});
+
 final apiClientProvider = Provider<PlayAssetApiClient>((ref) {
   final token = ref.watch(sessionControllerProvider).session?.accessToken;
   return PlayAssetApiClient(accessToken: token);
@@ -262,4 +293,71 @@ final paidServicePoliciesProvider =
 final adminUsersProvider = FutureProvider<List<AdminUserData>>((ref) async {
   final api = ref.watch(apiClientProvider);
   return api.fetchAdminUsers();
+});
+
+final adminGroupsProvider = FutureProvider<List<AdminGroupData>>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  return api.fetchAdminGroups();
+});
+
+final runtimeConfigsProvider =
+    FutureProvider.family<List<RuntimeConfigData>, String?>(
+        (ref, groupCode) async {
+  final api = ref.watch(apiClientProvider);
+  return api.fetchRuntimeConfigs(groupCode: groupCode);
+});
+
+class InvestmentProfileController
+    extends StateNotifier<InvestmentProfileData?> {
+  InvestmentProfileController(this.ref, this.userId) : super(null) {
+    _load();
+  }
+
+  final Ref ref;
+  final int? userId;
+
+  Future<void> save(InvestmentProfileData profile) async {
+    final uid = userId;
+    if (uid == null) {
+      state = null;
+      return;
+    }
+    final api = ref.read(apiClientProvider);
+    final saved = await api.upsertInvestmentProfile(uid, profile);
+    state = saved;
+    ref.invalidate(advisorProvider);
+  }
+
+  Future<void> clear() async {
+    final uid = userId;
+    if (uid == null) {
+      state = null;
+      return;
+    }
+    final api = ref.read(apiClientProvider);
+    await api.deleteInvestmentProfile(uid);
+    state = null;
+    ref.invalidate(advisorProvider);
+  }
+
+  Future<void> refresh() async {
+    await _load();
+  }
+
+  Future<void> _load() async {
+    final uid = userId;
+    if (uid == null) {
+      state = null;
+      return;
+    }
+    final api = ref.read(apiClientProvider);
+    state = await api.fetchInvestmentProfile(uid);
+  }
+}
+
+final investmentProfileProvider =
+    StateNotifierProvider<InvestmentProfileController, InvestmentProfileData?>(
+        (ref) {
+  final userId = ref.watch(sessionControllerProvider).userId;
+  return InvestmentProfileController(ref, userId);
 });

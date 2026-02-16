@@ -563,6 +563,59 @@ class LoginSessionData {
   }
 }
 
+class InvestmentProfileData {
+  InvestmentProfileData({
+    required this.profileKey,
+    required this.profileName,
+    required this.shortLabel,
+    required this.summary,
+    required this.score,
+    required this.riskTier,
+    required this.targetAllocationHint,
+    required this.updatedAt,
+    required this.answers,
+  });
+
+  final String profileKey;
+  final String profileName;
+  final String shortLabel;
+  final String summary;
+  final int score;
+  final int riskTier;
+  final String targetAllocationHint;
+  final String updatedAt;
+  final Map<String, int> answers;
+
+  factory InvestmentProfileData.fromJson(Map<String, dynamic> json) {
+    final rawAnswers = (json['answers'] as Map<String, dynamic>? ?? {});
+    return InvestmentProfileData(
+      profileKey: json['profileKey'] as String,
+      profileName: json['profileName'] as String,
+      shortLabel: json['shortLabel'] as String? ?? '',
+      summary: json['summary'] as String,
+      score: json['score'] as int,
+      riskTier: json['riskTier'] as int,
+      targetAllocationHint: json['targetAllocationHint'] as String,
+      updatedAt: json['updatedAt'] as String,
+      answers: rawAnswers.map((key, value) => MapEntry(key, value as int)),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'profileKey': profileKey,
+      'profileName': profileName,
+      'shortLabel': shortLabel,
+      'summary': summary,
+      'score': score,
+      'riskTier': riskTier,
+      'targetAllocationHint': targetAllocationHint,
+      'updatedAt': updatedAt,
+      'answers': answers,
+    };
+  }
+}
+
 class PaidServicePolicyData {
   PaidServicePolicyData({
     required this.serviceKey,
@@ -598,6 +651,8 @@ class AdminUserData {
     required this.loginId,
     required this.displayName,
     required this.status,
+    required this.groupId,
+    required this.groupName,
     required this.roles,
   });
 
@@ -605,6 +660,8 @@ class AdminUserData {
   final String loginId;
   final String displayName;
   final String status;
+  final int? groupId;
+  final String? groupName;
   final List<String> roles;
 
   bool get isAdmin => roles.contains('ADMIN');
@@ -615,7 +672,87 @@ class AdminUserData {
       loginId: json['loginId'] as String,
       displayName: json['displayName'] as String,
       status: json['status'] as String,
+      groupId: json['groupId'] as int?,
+      groupName: json['groupName'] as String?,
       roles: (json['roles'] as List<dynamic>).map((e) => e as String).toList(),
+    );
+  }
+}
+
+class AdminGroupData {
+  AdminGroupData({
+    required this.groupId,
+    required this.groupKey,
+    required this.groupName,
+    required this.groupDesc,
+    required this.enabled,
+    required this.memberCount,
+    required this.permissions,
+  });
+
+  final int groupId;
+  final String groupKey;
+  final String groupName;
+  final String groupDesc;
+  final bool enabled;
+  final int memberCount;
+  final List<String> permissions;
+
+  factory AdminGroupData.fromJson(Map<String, dynamic> json) {
+    return AdminGroupData(
+      groupId: json['groupId'] as int,
+      groupKey: json['groupKey'] as String,
+      groupName: json['groupName'] as String,
+      groupDesc: json['groupDesc'] as String? ?? '',
+      enabled: json['enabled'] as bool,
+      memberCount: json['memberCount'] as int,
+      permissions: (json['permissions'] as List<dynamic>)
+          .map((e) => e as String)
+          .toList(),
+    );
+  }
+}
+
+class RuntimeConfigData {
+  RuntimeConfigData({
+    required this.runtimeConfigId,
+    required this.configGroupCd,
+    required this.configKey,
+    required this.configName,
+    required this.valueTypeCd,
+    required this.configValue,
+    required this.configDesc,
+    required this.sortNo,
+    required this.editable,
+    required this.enabled,
+    required this.updatedAt,
+  });
+
+  final int runtimeConfigId;
+  final String configGroupCd;
+  final String configKey;
+  final String configName;
+  final String valueTypeCd;
+  final String configValue;
+  final String configDesc;
+  final int sortNo;
+  final bool editable;
+  final bool enabled;
+  final String updatedAt;
+
+  factory RuntimeConfigData.fromJson(Map<String, dynamic> json) {
+    return RuntimeConfigData(
+      runtimeConfigId: json['runtimeConfigId'] as int,
+      configGroupCd: json['configGroupCd'] as String,
+      configKey: json['configKey'] as String,
+      configName: json['configName'] as String,
+      valueTypeCd: json['valueTypeCd'] as String,
+      configValue: json['configValue'] as String,
+      configDesc: json['configDesc'] as String? ?? '',
+      sortNo: json['sortNo'] as int,
+      editable: json['editable'] as bool,
+      enabled: json['enabled'] as bool,
+      updatedAt: json['updatedAt'] as String? ?? '',
     );
   }
 }

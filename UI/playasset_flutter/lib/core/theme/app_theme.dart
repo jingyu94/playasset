@@ -1,9 +1,112 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 class AppTheme {
   const AppTheme._();
 
   static ThemeData lightTheme() {
+    const scheme = ColorScheme(
+      brightness: Brightness.light,
+      primary: Color(0xFF4E7FA3),
+      onPrimary: Colors.white,
+      secondary: Color(0xFF4FAE9A),
+      onSecondary: Colors.white,
+      error: Color(0xFFD92D50),
+      onError: Colors.white,
+      surface: Color(0xFFFFFFFF),
+      onSurface: Color(0xFF132231),
+    );
+
+    final base = ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: const Color(0xFFF4FAF8),
+      brightness: Brightness.light,
+      fontFamily: 'NotoSansKR',
+    );
+
+    final readableTextTheme = base.textTheme
+        .apply(
+          bodyColor: const Color(0xFF0F172A),
+          displayColor: const Color(0xFF0F172A),
+        )
+        .copyWith(
+          bodyLarge: base.textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.1,
+            height: 1.35,
+          ),
+          bodyMedium: base.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.1,
+            height: 1.35,
+          ),
+          bodySmall: base.textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.1,
+            height: 1.3,
+          ),
+          labelLarge: base.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.1,
+          ),
+          labelMedium: base.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.1,
+          ),
+          titleMedium: base.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.1,
+          ),
+        );
+
+    return base.copyWith(
+      textTheme: readableTextTheme,
+      cardTheme: CardThemeData(
+        color: const Color(0xFFFCFFFE),
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: Color(0xFFD7E9E3)),
+        ),
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: const Color(0xFFF8FCFB),
+        indicatorColor: const Color(0x264FAE9A),
+        height: 64,
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          final selected = states.contains(WidgetState.selected);
+          return TextStyle(
+            color: selected ? const Color(0xFF2D637E) : const Color(0xFF627985),
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+            fontSize: 12,
+          );
+        }),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: const Color(0xFFF2F9F6),
+        hintStyle: const TextStyle(color: Color(0xFF69817E)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFD7E9E3)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFFD7E9E3)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: Color(0xFF4E7FA3), width: 1.3),
+        ),
+      ),
+      dividerColor: const Color(0xFFD7E9E3),
+    );
+  }
+
+  static ThemeData darkTheme() {
     const scheme = ColorScheme(
       brightness: Brightness.dark,
       primary: Color(0xFF4C8DFF),
@@ -87,7 +190,8 @@ class AppTheme {
         filled: true,
         fillColor: const Color(0xFF141F33),
         hintStyle: const TextStyle(color: Color(0xFF7F8CA5)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: Color(0xFF243450)),

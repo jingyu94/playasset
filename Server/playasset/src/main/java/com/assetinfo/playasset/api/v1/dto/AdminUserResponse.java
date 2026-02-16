@@ -7,5 +7,7 @@ public record AdminUserResponse(
         String loginId,
         String displayName,
         String status,
+        Long groupId,
+        String groupName,
         List<String> roles) {
 }

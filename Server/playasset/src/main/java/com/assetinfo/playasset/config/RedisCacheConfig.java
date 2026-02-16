@@ -34,6 +34,12 @@ public class RedisCacheConfig {
         cacheConfigs.put(CacheNames.ALERT_PREFERENCES, baseConfig.entryTtl(Duration.ofMinutes(3)));
         cacheConfigs.put(CacheNames.PORTFOLIO_ADVICE, baseConfig.entryTtl(Duration.ofMinutes(5)));
         cacheConfigs.put(CacheNames.PORTFOLIO_SIMULATION, baseConfig.entryTtl(Duration.ofMinutes(10)));
+        cacheConfigs.put(CacheNames.INVESTMENT_PROFILE, baseConfig.entryTtl(Duration.ofMinutes(30)));
+        cacheConfigs.put(CacheNames.LLM_PROMPT_TEMPLATE, baseConfig.entryTtl(Duration.ofHours(1)));
+        cacheConfigs.put(CacheNames.LLM_PROMPT_PAYLOAD, baseConfig.entryTtl(Duration.ofMinutes(15)));
+        cacheConfigs.put(CacheNames.RUNTIME_CONFIG, baseConfig.entryTtl(Duration.ofMinutes(10)));
+        cacheConfigs.put(CacheNames.EXTERNAL_MARKET_API, baseConfig.entryTtl(Duration.ofSeconds(30)));
+        cacheConfigs.put(CacheNames.EXTERNAL_NEWS_API, baseConfig.entryTtl(Duration.ofMinutes(5)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(baseConfig)

@@ -1,6 +1,8 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
+import 'dart:async';
 
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -9,15 +11,59 @@ import '../../../core/models/dashboard_models.dart';
 import 'complementary_accent.dart';
 import '../home_providers.dart';
 
-class DashboardTab extends ConsumerWidget {
+enum _DashboardGroup { status, diagnosis, recommendation }
+
+class DashboardTab extends ConsumerStatefulWidget {
   const DashboardTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<DashboardTab> createState() => _DashboardTabState();
+}
+
+class _DashboardTabState extends ConsumerState<DashboardTab> {
+  _DashboardGroup _group = _DashboardGroup.status;
+
+  @override
+  Widget build(BuildContext context) {
     final dashboardAsync = ref.watch(dashboardProvider);
     final positionsAsync = ref.watch(positionsProvider);
     final watchlistAsync = ref.watch(watchlistProvider);
     final advisorAsync = ref.watch(advisorProvider);
+    final watchlistSection = watchlistAsync.when(
+      data: (watchlist) {
+        final points = watchlist
+            .map((e) => _MarketBarPoint(
+                assetName: e.assetName,
+                ticker: _normalizeTicker(e.symbol),
+                changeRate: e.changeRate))
+            .toList();
+        return _TickerComparisonCard(points: points);
+      },
+      loading: () => dashboardAsync.when(
+        data: (data) => _TickerComparisonCard(
+          points: data.topMovers
+              .map((e) => _MarketBarPoint(
+                  assetName: e.assetName,
+                  ticker: _normalizeTicker(e.symbol),
+                  changeRate: e.changeRate))
+              .toList(),
+        ),
+        loading: () => const _LoadingCard(height: 280),
+        error: (e, _) => _ErrorCard(message: e.toString()),
+      ),
+      error: (_, __) => dashboardAsync.when(
+        data: (data) => _TickerComparisonCard(
+          points: data.topMovers
+              .map((e) => _MarketBarPoint(
+                  assetName: e.assetName,
+                  ticker: _normalizeTicker(e.symbol),
+                  changeRate: e.changeRate))
+              .toList(),
+        ),
+        loading: () => const _LoadingCard(height: 280),
+        error: (e, _) => _ErrorCard(message: e.toString()),
+      ),
+    );
 
     return RefreshIndicator(
       onRefresh: () async {
@@ -31,49 +77,71 @@ class DashboardTab extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
         children: [
           _Header(now: DateTime.now()),
+          const SizedBox(height: 12),
+          _ActionBriefCard(
+            dashboardAsync: dashboardAsync,
+            advisorAsync: advisorAsync,
+          ),
+          const SizedBox(height: 12),
+          _DashboardGroupSelector(
+            selected: _group,
+            onChanged: (group) => setState(() => _group = group),
+          ),
           const SizedBox(height: 14),
+          ..._buildGroupSections(
+            group: _group,
+            dashboardAsync: dashboardAsync,
+            positionsAsync: positionsAsync,
+            advisorAsync: advisorAsync,
+            watchlistSection: watchlistSection,
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildGroupSections({
+    required _DashboardGroup group,
+    required AsyncValue<DashboardData> dashboardAsync,
+    required AsyncValue<List<PositionData>> positionsAsync,
+    required AsyncValue<PortfolioAdviceData> advisorAsync,
+    required Widget watchlistSection,
+  }) {
+    switch (group) {
+      case _DashboardGroup.status:
+        return [
+          const _GroupIntroCard(
+            title: '한눈에 보기',
+            description: '총자산과 보유자산, 기간 수익 흐름부터 빠르게 확인해요.',
+            icon: Icons.space_dashboard_rounded,
+            accent: Color(0xFF5CA8FF),
+          ),
+          const SizedBox(height: 10),
           dashboardAsync.when(
             data: (data) => _HeroCard(data: data),
             loading: () => const _LoadingCard(height: 200),
             error: (e, _) => _ErrorCard(message: e.toString()),
           ),
           const SizedBox(height: 12),
-          watchlistAsync.when(
-            data: (watchlist) {
-              final points = watchlist
-                  .map((e) => _MarketBarPoint(
-                      assetName: e.assetName,
-                      ticker: _normalizeTicker(e.symbol),
-                      changeRate: e.changeRate))
-                  .toList();
-              return _TickerComparisonCard(points: points);
-            },
-            loading: () => dashboardAsync.when(
-              data: (data) => _TickerComparisonCard(
-                points: data.topMovers
-                    .map((e) => _MarketBarPoint(
-                        assetName: e.assetName,
-                        ticker: _normalizeTicker(e.symbol),
-                        changeRate: e.changeRate))
-                    .toList(),
-              ),
-              loading: () => const _LoadingCard(height: 280),
-              error: (e, _) => _ErrorCard(message: e.toString()),
-            ),
-            error: (_, __) => dashboardAsync.when(
-              data: (data) => _TickerComparisonCard(
-                points: data.topMovers
-                    .map((e) => _MarketBarPoint(
-                        assetName: e.assetName,
-                        ticker: _normalizeTicker(e.symbol),
-                        changeRate: e.changeRate))
-                    .toList(),
-              ),
-              loading: () => const _LoadingCard(height: 280),
-              error: (e, _) => _ErrorCard(message: e.toString()),
-            ),
+          positionsAsync.when(
+            data: (positions) => _HoldingAssetCard(positions: positions),
+            loading: () => const _LoadingCard(height: 260),
+            error: (e, _) => _ErrorCard(message: e.toString()),
           ),
           const SizedBox(height: 12),
+          const _PortfolioSimulationCard(),
+          const SizedBox(height: 12),
+          watchlistSection,
+        ];
+      case _DashboardGroup.diagnosis:
+        return [
+          const _GroupIntroCard(
+            title: '리스크 진단',
+            description: '집중도와 변동성, 최대 낙폭을 기준으로 현재 상태를 읽어드려요.',
+            icon: Icons.health_and_safety_rounded,
+            accent: Color(0xFFFFC56B),
+          ),
+          const SizedBox(height: 10),
           positionsAsync.when(
             data: (positions) => dashboardAsync.when(
               data: (dashboard) =>
@@ -91,14 +159,26 @@ class DashboardTab extends ConsumerWidget {
             error: (e, _) => _ErrorCard(message: e.toString()),
           ),
           const SizedBox(height: 12),
-          advisorAsync.when(
-            data: (advice) => _AdviceScenarioPreviewCard(advice: advice),
+          positionsAsync.when(
+            data: (positions) => advisorAsync.when(
+              data: (advice) => _AdviceScenarioPreviewCard(
+                  advice: advice, positions: positions),
+              loading: () => const _LoadingCard(height: 280),
+              error: (e, _) => _ErrorCard(message: e.toString()),
+            ),
             loading: () => const _LoadingCard(height: 280),
             error: (e, _) => _ErrorCard(message: e.toString()),
           ),
-          const SizedBox(height: 12),
-          const _PortfolioSimulationCard(),
-          const SizedBox(height: 12),
+        ];
+      case _DashboardGroup.recommendation:
+        return [
+          const _GroupIntroCard(
+            title: '실행 가이드',
+            description: '리밸런싱과 ETF 대안을 비용/우선순위 중심으로 정리해드려요.',
+            icon: Icons.bolt_rounded,
+            accent: Color(0xFF65D6A5),
+          ),
+          const SizedBox(height: 10),
           advisorAsync.when(
             data: (advice) =>
                 _RebalancingActionsCard(actions: advice.rebalancingActions),
@@ -112,11 +192,121 @@ class DashboardTab extends ConsumerWidget {
             loading: () => const _LoadingCard(height: 210),
             error: (e, _) => _ErrorCard(message: e.toString()),
           ),
-          const SizedBox(height: 12),
-          positionsAsync.when(
-            data: (positions) => _HoldingAssetCard(positions: positions),
-            loading: () => const _LoadingCard(height: 260),
-            error: (e, _) => _ErrorCard(message: e.toString()),
+        ];
+    }
+  }
+}
+
+class _DashboardGroupSelector extends StatelessWidget {
+  const _DashboardGroupSelector({
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final _DashboardGroup selected;
+  final ValueChanged<_DashboardGroup> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final background =
+        isDark ? const Color(0xFF101B2F) : const Color(0xFFF4F8FF);
+    final border = isDark ? const Color(0xFF233754) : const Color(0xFFD4DFEF);
+    final selectedBg =
+        isDark ? const Color(0x2A4C8DFF) : const Color(0x225E7FAF);
+    final selectedBorder =
+        isDark ? const Color(0xFF3A5F99) : const Color(0xFF90A7CA);
+    final selectedText =
+        isDark ? const Color(0xFFE8EEFF) : const Color(0xFF2B4369);
+    final text = isDark ? const Color(0xFF90A0BE) : const Color(0xFF62738F);
+    final subtleText =
+        isDark ? const Color(0xFF6F83A8) : const Color(0xFF7687A2);
+
+    Widget item({
+      required _DashboardGroup value,
+      required String label,
+      required String caption,
+      required IconData icon,
+    }) {
+      final active = selected == value;
+      return Expanded(
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: () => onChanged(value),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+            decoration: BoxDecoration(
+              color: active ? selectedBg : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                  color: active ? selectedBorder : Colors.transparent),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 14,
+                  color: active ? selectedText : text,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: active ? selectedText : text,
+                    fontSize: 13,
+                    fontWeight: active ? FontWeight.w800 : FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  caption,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: active ? selectedText.withOpacity(0.86) : subtleText,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(6),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: border),
+      ),
+      child: Row(
+        children: [
+          item(
+            value: _DashboardGroup.status,
+            label: '한눈에',
+            caption: '요약',
+            icon: Icons.stacked_line_chart_rounded,
+          ),
+          const SizedBox(width: 6),
+          item(
+            value: _DashboardGroup.diagnosis,
+            label: '리스크',
+            caption: '진단',
+            icon: Icons.monitor_heart_rounded,
+          ),
+          const SizedBox(width: 6),
+          item(
+            value: _DashboardGroup.recommendation,
+            label: '실행',
+            caption: '추천',
+            icon: Icons.auto_awesome_rounded,
           ),
         ],
       ),
@@ -124,13 +314,226 @@ class DashboardTab extends ConsumerWidget {
   }
 }
 
-class _Header extends StatelessWidget {
+class _ActionBriefCard extends StatelessWidget {
+  const _ActionBriefCard({
+    required this.dashboardAsync,
+    required this.advisorAsync,
+  });
+
+  final AsyncValue<DashboardData> dashboardAsync;
+  final AsyncValue<PortfolioAdviceData> advisorAsync;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor =
+        isDark ? const Color(0xFFEAF1FF) : const Color(0xFF1A2A45);
+    final subtitleColor =
+        isDark ? const Color(0xFF9AA7C0) : const Color(0xFF5D6E89);
+
+    final dashboard = dashboardAsync.valueOrNull;
+    final advice = advisorAsync.valueOrNull;
+    final briefLines = _buildBriefLines(dashboard: dashboard, advice: advice);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF111E35) : const Color(0xFFF3F8FF),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isDark ? const Color(0xFF274065) : const Color(0xFFD2DEEE),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0x224C8DFF)
+                      : const Color(0x225E7FAF),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '오늘 먼저 볼 내용',
+                  style: TextStyle(
+                    color: titleColor,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Icon(Icons.bolt_rounded,
+                  size: 16, color: Color(0xFFFFC56B)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '핵심 액션만 짧게 정리해뒀어요.',
+            style: TextStyle(
+              color: subtitleColor,
+              fontWeight: FontWeight.w600,
+              fontSize: 12,
+            ),
+          ),
+          const SizedBox(height: 8),
+          ...briefLines.map((line) => _BriefLine(text: line)),
+        ],
+      ),
+    );
+  }
+
+  List<String> _buildBriefLines({
+    required DashboardData? dashboard,
+    required PortfolioAdviceData? advice,
+  }) {
+    final lines = <String>[];
+    if (dashboard != null && dashboard.unreadAlertCount > 0) {
+      lines.add('미확인 알림 ${dashboard.unreadAlertCount}건부터 확인해요.');
+    }
+
+    if (advice != null) {
+      final concentration = advice.metrics.concentrationPct;
+      if (concentration >= 40) {
+        lines
+            .add('상위 종목 비중이 ${concentration.toStringAsFixed(1)}%라 분할 조정이 좋아요.');
+      } else if (advice.rebalancingActions.isNotEmpty) {
+        lines.add('리밸런싱 ${advice.rebalancingActions.length}건 후보가 준비돼 있어요.');
+      }
+    }
+
+    if (dashboard != null && dashboard.dailyPnlRate.abs() >= 2.0) {
+      lines.add(
+          '당일 변동이 ${dashboard.dailyPnlRate.toStringAsFixed(2)}%라 기준가 점검이 필요해요.');
+    }
+
+    if (lines.isEmpty) {
+      lines.add('현재 지표는 안정 범위에 가까워요. 현 전략을 유지하면서 추세만 점검해요.');
+    }
+    return lines.take(3).toList();
+  }
+}
+
+class _BriefLine extends StatelessWidget {
+  const _BriefLine({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.only(top: 2),
+            child: Icon(Icons.check_circle_rounded,
+                size: 14, color: Color(0xFF65D6A5)),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(
+                color:
+                    isDark ? const Color(0xFFDDE7FF) : const Color(0xFF273956),
+                fontWeight: FontWeight.w700,
+                height: 1.35,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GroupIntroCard extends StatelessWidget {
+  const _GroupIntroCard({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.accent,
+  });
+
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor =
+        isDark ? const Color(0xFFE8EEFF) : const Color(0xFF1D2D4A);
+    final descColor =
+        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5E7291);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF101A2E) : const Color(0xFFF7FAFF),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? const Color(0xFF263A5C) : const Color(0xFFD4DFEF),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.18),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 16, color: accent),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: titleColor,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  description,
+                  style: TextStyle(
+                    color: descColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Header extends ConsumerWidget {
   const _Header({required this.now});
 
   final DateTime now;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final mode = ref.watch(themeModeProvider);
     final formatter = DateFormat('M월 d일 (E) HH:mm', 'ko_KR');
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,19 +552,61 @@ class _Header extends StatelessWidget {
               const SizedBox(height: 3),
               Text(
                 '${formatter.format(now)} 기준 실시간 집계',
-                style: const TextStyle(
-                    color: Color(0xFF9AA7C0), fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  color: isDark
+                      ? const Color(0xFF9AA7C0)
+                      : const Color(0xFF5F6E88),
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
         ),
+        _ThemeModeMiniToggle(mode: mode),
         const SizedBox(width: 10),
-        const ComplementaryAccent(
+        ComplementaryAccent(
           icon: Icons.auto_graph_rounded,
-          primary: Color(0xFF59D6FF),
-          secondary: Color(0xFFFF7A8B),
+          primary: isDark ? const Color(0xFF59D6FF) : const Color(0xFF5E7FAF),
+          secondary: isDark ? const Color(0xFFFF7A8B) : const Color(0xFF4AAE9B),
         ),
       ],
+    );
+  }
+}
+
+class _ThemeModeMiniToggle extends ConsumerWidget {
+  const _ThemeModeMiniToggle({required this.mode});
+
+  final ThemeMode mode;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDarkMode = mode == ThemeMode.dark;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(999),
+      onTap: () async {
+        await ref.read(themeModeProvider.notifier).setThemeMode(
+              isDarkMode ? ThemeMode.light : ThemeMode.dark,
+            );
+      },
+      child: Container(
+        width: 34,
+        height: 34,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF13233F) : const Color(0xFFE9F0FA),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(
+            color: isDark ? const Color(0xFF2A3D62) : const Color(0xFFD0DBEB),
+          ),
+        ),
+        child: Icon(
+          isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+          size: 17,
+          color: isDark ? const Color(0xFFEAF1FF) : const Color(0xFF2F4E79),
+        ),
+      ),
     );
   }
 }
@@ -173,24 +618,35 @@ class _HeroCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final won =
         NumberFormat.currency(locale: 'ko_KR', symbol: '₩', decimalDigits: 0);
     final profit = data.dailyPnl >= 0;
     final pnlColor = profit ? const Color(0xFFFF5D73) : const Color(0xFF5CA8FF);
+    final titleColor =
+        isDark ? const Color(0xFFF2F6FF) : const Color(0xFF111827);
+    final subtleColor =
+        isDark ? const Color(0xFF9AA7C0) : const Color(0xFF5B6C86);
 
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
-        gradient: const LinearGradient(
+        gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF172746), Color(0xFF101D35), Color(0xFF0D172A)],
+          colors: isDark
+              ? const [Color(0xFF172746), Color(0xFF101D35), Color(0xFF0D172A)]
+              : const [Color(0xFFF6FAFF), Color(0xFFECF3FC), Color(0xFFE4EDF8)],
         ),
-        border: Border.all(color: const Color(0xFF2D436C)),
+        border: Border.all(
+          color: isDark ? const Color(0xFF2D436C) : const Color(0xFFCBD7EA),
+        ),
         boxShadow: [
           BoxShadow(
-              color: const Color(0x664C8DFF).withOpacity(0.2),
+              color:
+                  (isDark ? const Color(0x664C8DFF) : const Color(0x445E7FAF))
+                      .withOpacity(0.2),
               blurRadius: 24,
               offset: const Offset(0, 8)),
         ],
@@ -204,11 +660,15 @@ class _HeroCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                    color: const Color(0x224C8DFF),
+                    color: isDark
+                        ? const Color(0x224C8DFF)
+                        : const Color(0x335E7FAF),
                     borderRadius: BorderRadius.circular(999)),
-                child: const Text('총 자산',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w800, color: Color(0xFFDDE7FF))),
+                child: Text(
+                  '총 자산',
+                  style:
+                      TextStyle(fontWeight: FontWeight.w800, color: titleColor),
+                ),
               ),
               const Spacer(),
               Icon(Icons.insights_rounded, color: pnlColor, size: 20),
@@ -216,22 +676,27 @@ class _HeroCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(won.format(data.portfolioValue),
-              style: const TextStyle(
+              style: TextStyle(
                   fontSize: 33,
                   fontWeight: FontWeight.w900,
-                  letterSpacing: -1)),
+                  letterSpacing: -1,
+                  color: titleColor)),
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
             decoration: BoxDecoration(
-                color: const Color(0xFF0F1B31),
+                color:
+                    isDark ? const Color(0xFF0F1B31) : const Color(0xFFF7FBFF),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFF2A3B5A))),
+                border: Border.all(
+                    color: isDark
+                        ? const Color(0xFF2A3B5A)
+                        : const Color(0xFFD1DDEE))),
             child: Row(
               children: [
-                const Text('당일 평가손익',
+                Text('당일 평가손익',
                     style: TextStyle(
-                        color: Color(0xFF9AA7C0), fontWeight: FontWeight.w700)),
+                        color: subtleColor, fontWeight: FontWeight.w700)),
                 const Spacer(),
                 Text(
                   '${profit ? '+' : ''}${won.format(data.dailyPnl)} (${profit ? '+' : ''}${data.dailyPnlRate.toStringAsFixed(2)}%)',
@@ -244,9 +709,10 @@ class _HeroCard extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: _kpi('관심종목', '${data.watchlistCount}개')),
+              Expanded(child: _kpi('관심종목', '${data.watchlistCount}개', isDark)),
               const SizedBox(width: 8),
-              Expanded(child: _kpi('미확인 알림', '${data.unreadAlertCount}건')),
+              Expanded(
+                  child: _kpi('미확인 알림', '${data.unreadAlertCount}건', isDark)),
             ],
           ),
         ],
@@ -254,22 +720,22 @@ class _HeroCard extends StatelessWidget {
     );
   }
 
-  Widget _kpi(String label, String value) {
+  Widget _kpi(String label, String value, bool isDark) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-          color: const Color(0xFF101D33),
+          color: isDark ? const Color(0xFF101D33) : const Color(0xFFF7FBFF),
           borderRadius: BorderRadius.circular(11),
-          border: Border.all(color: const Color(0xFF273A58))),
+          border: Border.all(
+              color:
+                  isDark ? const Color(0xFF273A58) : const Color(0xFFD1DDEE))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label,
               style: const TextStyle(color: Color(0xFF8EA0C1), fontSize: 12)),
           const SizedBox(height: 3),
-          Text(value,
-              style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w800)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
         ],
       ),
     );
@@ -286,7 +752,7 @@ class _TickerComparisonCard extends StatefulWidget {
 }
 
 class _TickerComparisonCardState extends State<_TickerComparisonCard> {
-  static const int _initialVisibleLimit = 7;
+  static const int _initialVisibleLimit = 4;
 
   int? _selectedIndex;
   int _visibleCount = 0;
@@ -382,7 +848,7 @@ class _TickerComparisonCardState extends State<_TickerComparisonCard> {
           children: [
             Row(
               children: [
-                Text('종목별 당일 등락률 TOP ${points.length}',
+                Text('관심종목 당일 변동 요약 TOP ${points.length}',
                     style: const TextStyle(
                         fontSize: 17, fontWeight: FontWeight.w900)),
                 const SizedBox(width: 8),
@@ -390,7 +856,7 @@ class _TickerComparisonCardState extends State<_TickerComparisonCard> {
               ],
             ),
             const SizedBox(height: 4),
-            const Text('세로축은 당일 등락률(%)이고, 가로축은 종목명(티커) 기준이에요.',
+            const Text('보조 지표예요. 세로축은 당일 등락률(%)이고, 가로축은 종목명(티커) 기준이에요.',
                 style: TextStyle(color: Color(0xFF8EA0C1), fontSize: 12)),
             const SizedBox(height: 10),
             SizedBox(
@@ -428,7 +894,8 @@ class _TickerComparisonCardState extends State<_TickerComparisonCard> {
                           ),
                           gridData: FlGridData(
                             show: true,
-                            drawVerticalLine: false,
+                            drawVerticalLine: true,
+                            verticalInterval: 1,
                             horizontalInterval: scale.interval,
                             getDrawingHorizontalLine: (value) {
                               if (value == 0) {
@@ -437,6 +904,13 @@ class _TickerComparisonCardState extends State<_TickerComparisonCard> {
                               }
                               return const FlLine(
                                   color: Color(0x202B3B58), strokeWidth: 1);
+                            },
+                            getDrawingVerticalLine: (value) {
+                              return const FlLine(
+                                color: Color(0x1E3E5B86),
+                                strokeWidth: 1,
+                                dashArray: [3, 6],
+                              );
                             },
                           ),
                           borderData: FlBorderData(show: false),
@@ -660,6 +1134,22 @@ class _InsightCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tileBg = isDark ? const Color(0xFF12213A) : const Color(0xFFF7FCFA);
+    final tileBorder =
+        isDark ? const Color(0xFF2A3E63) : const Color(0xFFD0E4DE);
+    final labelText =
+        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5D7A7E);
+    final bodyText = isDark ? const Color(0xFFE8EEFF) : const Color(0xFF1E3742);
+    final hintText = isDark ? const Color(0xFFDCE5F8) : const Color(0xFF355056);
+    final sectionTitle =
+        isDark ? const Color(0xFFF2F6FF) : const Color(0xFF1E3742);
+    final badgeBg = isDark ? const Color(0x22FFC56B) : const Color(0x26F3B54E);
+    final badgeBorder =
+        isDark ? const Color(0x66FFC56B) : const Color(0x66C9892A);
+    final badgeText =
+        isDark ? const Color(0xFFFFDFA2) : const Color(0xFF9A6008);
+
     final total = positions.fold<double>(0, (sum, p) => sum + p.valuation);
     final sorted = [...positions]
       ..sort((a, b) => b.valuation.compareTo(a.valuation));
@@ -700,11 +1190,16 @@ class _InsightCard extends StatelessWidget {
                         top == null ? '-' : '${topRatio.toStringAsFixed(1)}%',
                         topRatio >= 45
                             ? const Color(0xFFFF6B81)
-                            : const Color(0xFF4C8DFF))),
+                            : const Color(0xFF4C8DFF),
+                        tileBg: tileBg,
+                        tileBorder: tileBorder,
+                        labelText: labelText)),
                 const SizedBox(width: 8),
                 Expanded(
-                    child:
-                        _metric('분산 투자 상태', riskLevel, _riskColor(riskLevel))),
+                    child: _metric('분산 투자 상태', riskLevel, _riskColor(riskLevel),
+                        tileBg: tileBg,
+                        tileBorder: tileBorder,
+                        labelText: labelText)),
               ],
             ),
             const SizedBox(height: 8),
@@ -712,39 +1207,66 @@ class _InsightCard extends StatelessWidget {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
-                  color: const Color(0xFF12213A),
+                  color: tileBg,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF2A3E63))),
-              child: const Text('설명: 최대 비중이 45%를 넘으면 포트폴리오 변동성이 급격히 커질 수 있습니다.',
-                  style: TextStyle(
-                      color: Color(0xFFDDE7FF), fontWeight: FontWeight.w700)),
+                  border: Border.all(color: tileBorder)),
+              child: Text('설명: 최대 비중이 45%를 넘으면 포트폴리오 변동성이 급격히 커질 수 있습니다.',
+                  style:
+                      TextStyle(color: bodyText, fontWeight: FontWeight.w700)),
             ),
             const SizedBox(height: 10),
-            const Text('추천 액션',
-                style: TextStyle(
-                    fontWeight: FontWeight.w800, color: Color(0xFFDDE7FF))),
-            const SizedBox(height: 6),
-            _action(action1),
-            _action(action2),
-            _action(action3),
+            Row(
+              children: [
+                const Icon(Icons.bolt_rounded,
+                    color: Color(0xFFFFC56B), size: 18),
+                const SizedBox(width: 6),
+                Text('추천 액션',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w900, color: sectionTitle)),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: badgeBg,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: badgeBorder),
+                  ),
+                  child: Text(
+                    '우선순위',
+                    style: TextStyle(
+                      color: badgeText,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _action(action1, priority: 0, isDark: isDark, bodyText: hintText),
+            _action(action2, priority: 1, isDark: isDark, bodyText: hintText),
+            _action(action3, priority: 2, isDark: isDark, bodyText: hintText),
           ],
         ),
       ),
     );
   }
 
-  Widget _metric(String label, String value, Color valueColor) {
+  Widget _metric(String label, String value, Color valueColor,
+      {required Color tileBg,
+      required Color tileBorder,
+      required Color labelText}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-          color: const Color(0xFF12213A),
+          color: tileBg,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: const Color(0xFF2A3E63))),
+          border: Border.all(color: tileBorder)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: const TextStyle(color: Color(0xFF8EA0C1), fontSize: 12)),
+          Text(label, style: TextStyle(color: labelText, fontSize: 12)),
           const SizedBox(height: 2),
           Text(value,
               style: TextStyle(color: valueColor, fontWeight: FontWeight.w900)),
@@ -759,22 +1281,70 @@ class _InsightCard extends StatelessWidget {
     return const Color(0xFF6FB0FF);
   }
 
-  Widget _action(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
+  Widget _action(String text,
+      {required int priority, required bool isDark, required Color bodyText}) {
+    final accent = switch (priority) {
+      0 => const Color(0xFFFFC56B),
+      1 => const Color(0xFF59D6FF),
+      _ => const Color(0xFF7BD88F),
+    };
+    final icon = switch (priority) {
+      0 => Icons.local_fire_department_rounded,
+      1 => Icons.notifications_active_rounded,
+      _ => Icons.check_circle_outline_rounded,
+    };
+    final label = switch (priority) {
+      0 => '가장 먼저',
+      1 => '다음으로',
+      _ => '유지 점검',
+    };
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: accent.withOpacity(isDark ? 0.45 : 0.4)),
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [accent.withOpacity(isDark ? 0.16 : 0.1), Colors.transparent],
+        ),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 5),
-            child: Icon(Icons.fiber_manual_record_rounded,
-                size: 8, color: Color(0xFF7F95BA)),
+          Container(
+            margin: const EdgeInsets.only(top: 1),
+            padding: const EdgeInsets.all(5),
+            decoration: BoxDecoration(
+              color: accent.withOpacity(0.22),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 13, color: accent),
           ),
           const SizedBox(width: 8),
           Expanded(
-              child: Text(text,
-                  style:
-                      const TextStyle(color: Color(0xFFD3DCF0), height: 1.35))),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: accent,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  text,
+                  style: TextStyle(color: bodyText, height: 1.35),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -788,6 +1358,21 @@ class _AdvisorSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleText =
+        isDark ? const Color(0xFFE8EEFF) : const Color(0xFF1E3742);
+    final summaryText =
+        isDark ? const Color(0xFF9AA7C0) : const Color(0xFF5D7A7E);
+    final tileBg = isDark ? const Color(0xFF12213A) : const Color(0xFFF7FCFA);
+    final tileBorder =
+        isDark ? const Color(0xFF2A3E63) : const Color(0xFFD0E4DE);
+    final tileLabel =
+        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5D7A7E);
+    final sectionText =
+        isDark ? const Color(0xFFDDE7FF) : const Color(0xFF1E3742);
+    final bulletBody =
+        isDark ? const Color(0xFFDCE5F8) : const Color(0xFF355056);
+
     final m = advice.metrics;
     final normalizedRisk = _normalizeRiskLabel(m.riskLevel);
     final isStableMode = advice.insight.headline.contains('안정') ||
@@ -833,13 +1418,12 @@ class _AdvisorSummaryCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               advice.insight.headline,
-              style: const TextStyle(
-                  fontWeight: FontWeight.w800, color: Color(0xFFE8EEFF)),
+              style: TextStyle(fontWeight: FontWeight.w800, color: titleText),
             ),
             const SizedBox(height: 4),
             Text(
               advice.insight.summary,
-              style: const TextStyle(color: Color(0xFF9AA7C0), height: 1.35),
+              style: TextStyle(color: summaryText, height: 1.35),
             ),
             const SizedBox(height: 10),
             Row(
@@ -849,6 +1433,9 @@ class _AdvisorSummaryCard extends StatelessWidget {
                     '샤프지수',
                     m.sharpeRatio.toStringAsFixed(2),
                     const Color(0xFF65D6A5),
+                    tileBg: tileBg,
+                    tileBorder: tileBorder,
+                    labelText: tileLabel,
                     helpText: '같은 위험에서 수익을 얼마나 효율적으로 냈는지 보여줘요.',
                   ),
                 ),
@@ -858,6 +1445,9 @@ class _AdvisorSummaryCard extends StatelessWidget {
                     '연환산 변동성',
                     '${m.annualVolatilityPct.toStringAsFixed(1)}%',
                     const Color(0xFFFFC56B),
+                    tileBg: tileBg,
+                    tileBorder: tileBorder,
+                    labelText: tileLabel,
                     helpText: '수익률이 얼마나 크게 흔들리는지 보여줘요.',
                   ),
                 ),
@@ -871,6 +1461,9 @@ class _AdvisorSummaryCard extends StatelessWidget {
                     '최대 낙폭(MDD)',
                     '${m.maxDrawdownPct.toStringAsFixed(1)}%',
                     const Color(0xFFFF6B81),
+                    tileBg: tileBg,
+                    tileBorder: tileBorder,
+                    labelText: tileLabel,
                     helpText:
                         '고점 대비 가장 크게 빠진 구간이에요. 위기 구간에서 버틸 수 있는지 보는 핵심 지표예요.',
                   ),
@@ -881,6 +1474,9 @@ class _AdvisorSummaryCard extends StatelessWidget {
                     '분산 점수',
                     '${m.diversificationScore.toStringAsFixed(1)}점',
                     const Color(0xFF5CA8FF),
+                    tileBg: tileBg,
+                    tileBorder: tileBorder,
+                    labelText: tileLabel,
                     helpText: '자산이 한쪽에 몰리지 않았는지 보여주는 지표예요.',
                   ),
                 ),
@@ -905,9 +1501,11 @@ class _AdvisorSummaryCard extends StatelessWidget {
                     ? '지금은 구조 변경보다 운영 전략 중심이 더 효율적이에요.'
                     : '지금은 비중 조정/리스크 완화 액션을 먼저 보는 게 좋아요.',
                 style: TextStyle(
-                  color: isStableMode
-                      ? const Color(0xFFB9F5DD)
-                      : const Color(0xFFBAD2FF),
+                  color: isDark
+                      ? (isStableMode
+                          ? const Color(0xFFB9F5DD)
+                          : const Color(0xFFBAD2FF))
+                      : const Color(0xFF355056),
                   fontWeight: FontWeight.w800,
                 ),
               ),
@@ -915,11 +1513,16 @@ class _AdvisorSummaryCard extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               isStableMode ? '운영 전략' : '우선 액션',
-              style: const TextStyle(
-                  fontWeight: FontWeight.w800, color: Color(0xFFDDE7FF)),
+              style: TextStyle(fontWeight: FontWeight.w800, color: sectionText),
             ),
             const SizedBox(height: 6),
-            ...advice.insight.keyPoints.take(4).map(_bullet),
+            ...advice.insight.keyPoints.take(4).toList().asMap().entries.map(
+                  (entry) => _bullet(entry.value,
+                      order: entry.key,
+                      isStableMode: isStableMode,
+                      isDark: isDark,
+                      bodyText: bulletBody),
+                ),
             if (advice.insight.cautions.isNotEmpty) ...[
               const SizedBox(height: 6),
               Container(
@@ -927,14 +1530,14 @@ class _AdvisorSummaryCard extends StatelessWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF12213A),
+                  color: tileBg,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF2A3E63)),
+                  border: Border.all(color: tileBorder),
                 ),
                 child: Text(
                   advice.insight.cautions.first,
-                  style: const TextStyle(
-                      color: Color(0xFF9AA7C0), height: 1.35, fontSize: 12),
+                  style:
+                      TextStyle(color: summaryText, height: 1.35, fontSize: 12),
                 ),
               ),
             ],
@@ -945,13 +1548,16 @@ class _AdvisorSummaryCard extends StatelessWidget {
   }
 
   Widget _metric(String label, String value, Color valueColor,
-      {String? helpText}) {
+      {required Color tileBg,
+      required Color tileBorder,
+      required Color labelText,
+      String? helpText}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF12213A),
+        color: tileBg,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF2A3E63)),
+        border: Border.all(color: tileBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -960,8 +1566,7 @@ class _AdvisorSummaryCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(label,
-                    style: const TextStyle(
-                        color: Color(0xFF8EA0C1), fontSize: 12)),
+                    style: TextStyle(color: labelText, fontSize: 12)),
               ),
               if (helpText != null)
                 _InfoBubbleIcon(
@@ -978,22 +1583,55 @@ class _AdvisorSummaryCard extends StatelessWidget {
     );
   }
 
-  Widget _bullet(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+  Widget _bullet(String text,
+      {required int order,
+      required bool isStableMode,
+      required bool isDark,
+      required Color bodyText}) {
+    final accent = isStableMode
+        ? const [Color(0xFF65D6A5), Color(0xFF59D6FF), Color(0xFF8EC7FF)]
+        : const [Color(0xFFFFC56B), Color(0xFFFF8A6B), Color(0xFF59D6FF)];
+    final icon = isStableMode
+        ? const [
+            Icons.track_changes_rounded,
+            Icons.show_chart_rounded,
+            Icons.verified_rounded,
+          ]
+        : const [
+            Icons.priority_high_rounded,
+            Icons.tune_rounded,
+            Icons.checklist_rounded,
+          ];
+    final idx = order.clamp(0, 2);
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        border:
+            Border.all(color: accent[idx].withOpacity(isDark ? 0.44 : 0.36)),
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: [
+            accent[idx].withOpacity(isDark ? 0.16 : 0.1),
+            Colors.transparent
+          ],
+        ),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 6),
-            child: Icon(Icons.fiber_manual_record_rounded,
-                size: 7, color: Color(0xFF7F95BA)),
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(icon[idx], size: 15, color: accent[idx]),
           ),
           const SizedBox(width: 8),
           Expanded(
-              child: Text(text,
-                  style:
-                      const TextStyle(color: Color(0xFFD3DCF0), height: 1.35))),
+              child:
+                  Text(text, style: TextStyle(color: bodyText, height: 1.35))),
         ],
       ),
     );
@@ -1039,9 +1677,13 @@ class _AdviceMetricsDelta {
 }
 
 class _AdviceScenarioPreviewCard extends StatefulWidget {
-  const _AdviceScenarioPreviewCard({required this.advice});
+  const _AdviceScenarioPreviewCard({
+    required this.advice,
+    required this.positions,
+  });
 
   final PortfolioAdviceData advice;
+  final List<PositionData> positions;
 
   @override
   State<_AdviceScenarioPreviewCard> createState() =>
@@ -1050,32 +1692,98 @@ class _AdviceScenarioPreviewCard extends StatefulWidget {
 
 class _AdviceScenarioPreviewCardState
     extends State<_AdviceScenarioPreviewCard> {
+  static const int _initialHoldingLimit = 5;
+
   _AdviceScenarioType? _hoveredScenario;
   _AdviceScenarioType? _pinnedScenario;
+  Timer? _hoverExitTimer;
+  int _visibleHoldingCount = _initialHoldingLimit;
 
   _AdviceScenarioType? get _activeScenario =>
       _hoveredScenario ?? _pinnedScenario;
 
+  bool get _preferHover {
+    if (kIsWeb) return true;
+    return defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux;
+  }
+
+  @override
+  void dispose() {
+    _hoverExitTimer?.cancel();
+    super.dispose();
+  }
+
   void _onEnterScenario(_AdviceScenarioType scenario) {
+    if (!_preferHover) return;
+    _hoverExitTimer?.cancel();
     if (_hoveredScenario != scenario) {
-      setState(() => _hoveredScenario = scenario);
+      setState(() {
+        _hoveredScenario = scenario;
+        _visibleHoldingCount = _initialHoldingLimit;
+      });
     }
   }
 
   void _onExitScenario(_AdviceScenarioType scenario) {
-    if (_hoveredScenario == scenario) {
-      setState(() => _hoveredScenario = null);
-    }
+    if (!_preferHover) return;
+    _hoverExitTimer?.cancel();
+    _hoverExitTimer = Timer(const Duration(milliseconds: 80), () {
+      if (!mounted) return;
+      if (_hoveredScenario == scenario) {
+        setState(() => _hoveredScenario = null);
+      }
+    });
   }
 
   void _togglePinnedScenario(_AdviceScenarioType scenario) {
     setState(() {
       _pinnedScenario = _pinnedScenario == scenario ? null : scenario;
+      _visibleHoldingCount = _initialHoldingLimit;
     });
+  }
+
+  void _expandHoldings(int total) {
+    if (_visibleHoldingCount != total) {
+      setState(() => _visibleHoldingCount = total);
+    }
+  }
+
+  void _collapseHoldings() {
+    if (_visibleHoldingCount != _initialHoldingLimit) {
+      setState(() => _visibleHoldingCount = _initialHoldingLimit);
+    }
+  }
+
+  double _scenarioCardWidth(double maxWidth) {
+    if (maxWidth >= 720) {
+      return (maxWidth - 16) / 3;
+    }
+    if (maxWidth >= 460) {
+      return (maxWidth - 8) / 2;
+    }
+    return maxWidth;
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final panelBg = isDark ? const Color(0xFF112038) : const Color(0xFFF2FAF7);
+    final panelInnerBg =
+        isDark ? const Color(0xFF12213A) : const Color(0xFFF7FCFA);
+    final panelActiveBg =
+        isDark ? const Color(0xFF183058) : const Color(0xFFEAF5F4);
+    final panelBorder =
+        isDark ? const Color(0xFF2A3E63) : const Color(0xFFD0E4DE);
+    final titleText =
+        isDark ? const Color(0xFFEAF1FF) : const Color(0xFF18313B);
+    final bodyText = isDark ? const Color(0xFFD3DCF0) : const Color(0xFF2D4850);
+    final mutedText =
+        isDark ? const Color(0xFF9AA7C0) : const Color(0xFF5F7A7B);
+    final buttonText =
+        isDark ? const Color(0xFF9FB3D8) : const Color(0xFF3D6775);
+
     final base = widget.advice.metrics;
     final projections = _buildAdviceScenarioProjections(widget.advice);
     final orderedProjections = [
@@ -1090,6 +1798,45 @@ class _AdviceScenarioPreviewCardState
     final projectionTitle = activeProjection?.label ?? '현재 포트폴리오 진단';
     final projectionSummary = activeProjection?.summary ??
         '카드에 마우스를 올리거나 탭하면 시나리오별 변화값을 미리 확인할 수 있습니다.';
+    final actionBuyAmount = widget.advice.rebalancingActions
+        .where((action) => action.action == 'BUY')
+        .fold<double>(0, (sum, action) => sum + action.suggestedAmount);
+    final actionSellAmount = widget.advice.rebalancingActions
+        .where((action) => action.action != 'BUY')
+        .fold<double>(0, (sum, action) => sum + action.suggestedAmount);
+    final etfTradeAmount = base.totalValue *
+        (widget.advice.etfRecommendations.fold<double>(
+              0,
+              (sum, etf) => sum + etf.suggestedWeightPct,
+            ) /
+            100);
+    final double scenarioBuyAmount = switch (activeScenario) {
+      _AdviceScenarioType.rebalancing => actionBuyAmount,
+      _AdviceScenarioType.etf => etfTradeAmount,
+      _AdviceScenarioType.combined => actionBuyAmount + etfTradeAmount,
+      null => 0.0,
+    };
+    final double scenarioSellAmount = switch (activeScenario) {
+      _AdviceScenarioType.rebalancing => actionSellAmount,
+      _AdviceScenarioType.etf => etfTradeAmount,
+      _AdviceScenarioType.combined => actionSellAmount + etfTradeAmount,
+      null => 0.0,
+    };
+    final projectedHoldingsByScenario = _buildProjectedHoldingsByScenario(
+      positions: widget.positions,
+      advice: widget.advice,
+      totalReferenceValue: base.totalValue,
+    );
+    final holdingPreview = activeScenario == null
+        ? _buildHoldingPreviewFromPositions(widget.positions)
+        : projectedHoldingsByScenario[activeScenario] ??
+            const <_ScenarioHoldingPreview>[];
+    final visibleHoldingCount =
+        math.min(_visibleHoldingCount, holdingPreview.length);
+    final displayedHolding = holdingPreview.take(visibleHoldingCount).toList();
+    final canExpand = visibleHoldingCount < holdingPreview.length;
+    final canCollapse = holdingPreview.length > _initialHoldingLimit &&
+        visibleHoldingCount > _initialHoldingLimit;
 
     return Card(
       child: Padding(
@@ -1108,7 +1855,7 @@ class _AdviceScenarioPreviewCardState
                   TextButton.icon(
                     onPressed: () => setState(() => _pinnedScenario = null),
                     style: TextButton.styleFrom(
-                      foregroundColor: const Color(0xFF9FB3D8),
+                      foregroundColor: buttonText,
                       visualDensity: VisualDensity.compact,
                     ),
                     icon: const Icon(Icons.lock_open_rounded, size: 16),
@@ -1117,88 +1864,155 @@ class _AdviceScenarioPreviewCardState
               ],
             ),
             const SizedBox(height: 4),
-            Text(
-              projectionSummary,
-              style: const TextStyle(
-                  color: Color(0xFF9AA7C0), fontSize: 12, height: 1.35),
+            ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 34),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 160),
+                child: Text(
+                  projectionSummary,
+                  key: ValueKey(projectionSummary),
+                  style:
+                      TextStyle(color: mutedText, fontSize: 12, height: 1.35),
+                ),
+              ),
             ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: orderedProjections.map((projection) {
-                final active = activeScenario == projection.type;
-                final pinned = _pinnedScenario == projection.type;
-                return MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  onEnter: (_) => _onEnterScenario(projection.type),
-                  onExit: (_) => _onExitScenario(projection.type),
-                  child: GestureDetector(
-                    onTap: () => _togglePinnedScenario(projection.type),
-                    behavior: HitTestBehavior.opaque,
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOutCubic,
-                      width: 232,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 9),
-                      decoration: BoxDecoration(
-                        color: active
-                            ? const Color(0xFF183058)
-                            : const Color(0xFF12213A),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: active
-                              ? projection.accent.withOpacity(0.8)
-                              : const Color(0xFF2A3E63),
-                          width: active ? 1.3 : 1,
-                        ),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  projection.label,
-                                  style: TextStyle(
-                                    color: active
-                                        ? const Color(0xFFF1F5FF)
-                                        : const Color(0xFFD3DCF0),
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 13,
-                                  ),
-                                ),
-                              ),
-                              if (pinned)
-                                const Icon(Icons.push_pin_rounded,
-                                    size: 14, color: Color(0xFFBAD2FF)),
-                            ],
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            projection.badge,
-                            style: TextStyle(
-                                color: projection.accent,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 11),
-                          ),
-                        ],
-                      ),
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              decoration: BoxDecoration(
+                color: panelBg,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: panelBorder),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    '예상 주문',
+                    style: TextStyle(
+                      color: mutedText,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
                     ),
                   ),
+                  const Spacer(),
+                  if (scenarioBuyAmount == 0 && scenarioSellAmount == 0)
+                    Text(
+                      '현재 기준 주문 변동 없음',
+                      style: TextStyle(
+                        color: bodyText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    )
+                  else ...[
+                    _tradeFlowChip(
+                      label: '매수',
+                      amount: scenarioBuyAmount,
+                      color: const Color(0xFF5CA8FF),
+                      icon: Icons.add_shopping_cart_rounded,
+                    ),
+                    const SizedBox(width: 6),
+                    _tradeFlowChip(
+                      label: '매도',
+                      amount: scenarioSellAmount,
+                      color: const Color(0xFFFF6B81),
+                      icon: Icons.sell_rounded,
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final cardWidth = _scenarioCardWidth(constraints.maxWidth);
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: orderedProjections.map((projection) {
+                    final active = activeScenario == projection.type;
+                    final pinned = _pinnedScenario == projection.type;
+                    return SizedBox(
+                      width: cardWidth,
+                      child: MouseRegion(
+                        cursor: SystemMouseCursors.click,
+                        onEnter: (_) => _onEnterScenario(projection.type),
+                        onExit: (_) => _onExitScenario(projection.type),
+                        child: GestureDetector(
+                          onTap: () => _togglePinnedScenario(projection.type),
+                          behavior: HitTestBehavior.opaque,
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 180),
+                            curve: Curves.easeOutCubic,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 9),
+                            decoration: BoxDecoration(
+                              color: active ? panelActiveBg : panelInnerBg,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: active
+                                    ? projection.accent.withOpacity(0.86)
+                                    : panelBorder,
+                                width: 1,
+                              ),
+                              boxShadow: active
+                                  ? [
+                                      BoxShadow(
+                                        color:
+                                            projection.accent.withOpacity(0.18),
+                                        blurRadius: 14,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ]
+                                  : null,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        projection.label,
+                                        style: TextStyle(
+                                          color: active ? titleText : bodyText,
+                                          fontWeight: FontWeight.w800,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ),
+                                    if (pinned)
+                                      const Icon(Icons.push_pin_rounded,
+                                          size: 14, color: Color(0xFF74A9C0)),
+                                  ],
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  projection.badge,
+                                  style: TextStyle(
+                                      color: projection.accent,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 11),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }).toList(),
                 );
-              }).toList(),
+              },
             ),
             const SizedBox(height: 10),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
               decoration: BoxDecoration(
-                color: const Color(0xFF112038),
+                color: panelBg,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFF2A3E63)),
+                border: Border.all(color: panelBorder),
               ),
               child: Row(
                 children: [
@@ -1209,7 +2023,7 @@ class _AdviceScenarioPreviewCardState
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: activeProjection == null
-                            ? const Color(0xFFD3DCF0)
+                            ? bodyText
                             : activeProjection.accent,
                         fontWeight: FontWeight.w800,
                       ),
@@ -1221,7 +2035,7 @@ class _AdviceScenarioPreviewCardState
                     const Padding(
                       padding: EdgeInsets.symmetric(horizontal: 6),
                       child: Icon(Icons.arrow_forward_rounded,
-                          size: 16, color: Color(0xFF8EA0C1)),
+                          size: 16, color: Color(0xFF7A9CA1)),
                     ),
                     _riskBadge(_normalizeRiskLabel(projected.riskLevel)),
                   ],
@@ -1283,20 +2097,226 @@ class _AdviceScenarioPreviewCardState
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    activeScenario == null ? '현재 보유 구성' : '반영 후 보유 구성',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                      color: isDark
+                          ? const Color(0xFFEAF1FF)
+                          : const Color(0xFF18313B),
+                    ),
+                  ),
+                ),
+                if (activeScenario != null)
+                  Text(
+                    '${activeProjection?.label ?? ''} 기준',
+                    style: TextStyle(
+                      color: mutedText,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (displayedHolding.isEmpty)
+              Container(
+                width: double.infinity,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                decoration: BoxDecoration(
+                  color: panelBg,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: panelBorder),
+                ),
+                child: Text(
+                  '표시할 종목 데이터가 아직 없어요.',
+                  style: TextStyle(
+                    color: mutedText,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              )
+            else
+              Container(
+                decoration: BoxDecoration(
+                  color: panelBg,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: panelBorder),
+                ),
+                child: AnimatedSize(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeOutCubic,
+                  child: Column(
+                    children: [
+                      for (int i = 0; i < displayedHolding.length; i++) ...[
+                        if (i > 0)
+                          Divider(
+                            height: 1,
+                            thickness: 1,
+                            color: panelBorder,
+                          ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 9),
+                          child: _holdingPreviewTile(displayedHolding[i]),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            if (holdingPreview.length > _initialHoldingLimit)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: _ProgressiveRevealControl(
+                  canExpand: canExpand,
+                  canCollapse: canCollapse,
+                  remainingCount: holdingPreview.length - visibleHoldingCount,
+                  onExpand: () => _expandHoldings(holdingPreview.length),
+                  onCollapse: _collapseHoldings,
+                ),
+              ),
           ],
         ),
       ),
     );
   }
 
+  Widget _holdingPreviewTile(_ScenarioHoldingPreview item) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleText =
+        isDark ? const Color(0xFFE8EEFF) : const Color(0xFF18313B);
+    final subText = isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5D7A7E);
+    final valueText =
+        isDark ? const Color(0xFFF3F6FF) : const Color(0xFF1E3742);
+
+    final won =
+        NumberFormat.currency(locale: 'ko_KR', symbol: '₩', decimalDigits: 0);
+    final delta = item.afterValue - item.beforeValue;
+    final changeAbsText = won.format(delta.abs());
+    final String actionLabel;
+    final Color actionColor;
+    final IconData actionIcon;
+
+    if (item.beforeValue <= 1 && item.afterValue > 1) {
+      actionLabel = '신규 편입';
+      actionColor = const Color(0xFF65D6A5);
+      actionIcon = Icons.playlist_add_rounded;
+    } else if (item.afterValue <= 1 && item.beforeValue > 1) {
+      actionLabel = '편출';
+      actionColor = const Color(0xFFFF6B81);
+      actionIcon = Icons.remove_circle_outline_rounded;
+    } else if (delta > 0) {
+      actionLabel = '매수 확대';
+      actionColor = const Color(0xFF5CA8FF);
+      actionIcon = Icons.trending_up_rounded;
+    } else if (delta < 0) {
+      actionLabel = '매도 조정';
+      actionColor = const Color(0xFFFF6B81);
+      actionIcon = Icons.trending_down_rounded;
+    } else {
+      actionLabel = '유지';
+      actionColor = const Color(0xFF9AA7C0);
+      actionIcon = Icons.drag_handle_rounded;
+    }
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.assetName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: titleText,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    item.symbol,
+                    style: TextStyle(
+                      color: subText,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              won.format(item.afterValue),
+              style: TextStyle(
+                color: valueText,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                '현재 ${won.format(item.beforeValue)} → 반영 ${won.format(item.afterValue)}',
+                style: TextStyle(
+                  color: subText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: actionColor.withOpacity(0.16),
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: actionColor.withOpacity(0.44)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(actionIcon, size: 12, color: actionColor),
+                  const SizedBox(width: 4),
+                  Text(
+                    '$actionLabel $changeAbsText',
+                    style: TextStyle(
+                      color: actionColor,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _riskBadge(String label) {
     final color = _riskBadgeColor(label);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.16),
+        color: color.withOpacity(isDark ? 0.16 : 0.12),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withOpacity(0.45)),
+        border: Border.all(color: color.withOpacity(isDark ? 0.45 : 0.35)),
       ),
       child: Text(
         label,
@@ -1305,6 +2325,230 @@ class _AdviceScenarioPreviewCardState
       ),
     );
   }
+
+  Widget _tradeFlowChip({
+    required String label,
+    required double amount,
+    required Color color,
+    required IconData icon,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final won =
+        NumberFormat.currency(locale: 'ko_KR', symbol: '₩', decimalDigits: 0);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(isDark ? 0.16 : 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withOpacity(isDark ? 0.45 : 0.35)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            '$label ${won.format(amount)}',
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w800,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ScenarioHoldingPreview {
+  const _ScenarioHoldingPreview({
+    required this.assetName,
+    required this.symbol,
+    required this.beforeValue,
+    required this.afterValue,
+  });
+
+  final String assetName;
+  final String symbol;
+  final double beforeValue;
+  final double afterValue;
+}
+
+class _MutableHoldingState {
+  _MutableHoldingState({
+    required this.assetName,
+    required this.symbol,
+    required this.beforeValue,
+    required this.afterValue,
+  });
+
+  String assetName;
+  String symbol;
+  double beforeValue;
+  double afterValue;
+
+  _MutableHoldingState copy() => _MutableHoldingState(
+        assetName: assetName,
+        symbol: symbol,
+        beforeValue: beforeValue,
+        afterValue: afterValue,
+      );
+}
+
+List<_ScenarioHoldingPreview> _buildHoldingPreviewFromPositions(
+    List<PositionData> positions) {
+  final states = _buildHoldingStateMap(positions);
+  return _toScenarioHoldingPreview(states);
+}
+
+Map<_AdviceScenarioType, List<_ScenarioHoldingPreview>>
+    _buildProjectedHoldingsByScenario({
+  required List<PositionData> positions,
+  required PortfolioAdviceData advice,
+  required double totalReferenceValue,
+}) {
+  final safeTotal = totalReferenceValue > 0
+      ? totalReferenceValue
+      : positions.fold<double>(0, (sum, p) => sum + p.valuation);
+  final baseState = _buildHoldingStateMap(positions);
+  final rebalancingState = _cloneHoldingStateMap(baseState);
+  _applyRebalancingToHoldingState(rebalancingState, advice.rebalancingActions);
+  _normalizeHoldingStateTotal(rebalancingState, safeTotal);
+
+  final etfState = _cloneHoldingStateMap(baseState);
+  _applyEtfToHoldingState(
+    etfState,
+    advice.etfRecommendations,
+    safeTotal,
+  );
+  _normalizeHoldingStateTotal(etfState, safeTotal);
+
+  final combinedState = _cloneHoldingStateMap(baseState);
+  _applyRebalancingToHoldingState(combinedState, advice.rebalancingActions);
+  _applyEtfToHoldingState(
+    combinedState,
+    advice.etfRecommendations,
+    safeTotal,
+  );
+  _normalizeHoldingStateTotal(combinedState, safeTotal);
+
+  return {
+    _AdviceScenarioType.rebalancing:
+        _toScenarioHoldingPreview(rebalancingState),
+    _AdviceScenarioType.etf: _toScenarioHoldingPreview(etfState),
+    _AdviceScenarioType.combined: _toScenarioHoldingPreview(combinedState),
+  };
+}
+
+Map<String, _MutableHoldingState> _buildHoldingStateMap(
+    List<PositionData> positions) {
+  final map = <String, _MutableHoldingState>{};
+  for (final position in positions) {
+    final key = _normalizeTicker(position.symbol).toUpperCase();
+    final state = map.putIfAbsent(
+      key,
+      () => _MutableHoldingState(
+        assetName: position.assetName,
+        symbol: key,
+        beforeValue: 0,
+        afterValue: 0,
+      ),
+    );
+    state.assetName = position.assetName;
+    state.beforeValue += position.valuation;
+    state.afterValue += position.valuation;
+  }
+  return map;
+}
+
+Map<String, _MutableHoldingState> _cloneHoldingStateMap(
+    Map<String, _MutableHoldingState> source) {
+  return source.map((key, value) => MapEntry(key, value.copy()));
+}
+
+void _applyRebalancingToHoldingState(
+  Map<String, _MutableHoldingState> map,
+  List<RebalancingActionData> actions,
+) {
+  for (final action in actions) {
+    final key = _normalizeTicker(action.symbol).toUpperCase();
+    final state = map.putIfAbsent(
+      key,
+      () => _MutableHoldingState(
+        assetName: action.assetName,
+        symbol: key,
+        beforeValue: 0,
+        afterValue: 0,
+      ),
+    );
+    final isBuy = action.action.toUpperCase() == 'BUY';
+    final delta = isBuy ? action.suggestedAmount : -action.suggestedAmount;
+    state.afterValue = math.max(0, state.afterValue + delta);
+    if (state.assetName.isEmpty) {
+      state.assetName = action.assetName;
+    }
+  }
+}
+
+void _applyEtfToHoldingState(
+  Map<String, _MutableHoldingState> map,
+  List<EtfRecommendationData> etfs,
+  double totalReferenceValue,
+) {
+  if (etfs.isEmpty || totalReferenceValue <= 0) return;
+  final requestedWeight =
+      etfs.fold<double>(0, (sum, etf) => sum + etf.suggestedWeightPct);
+  final cappedWeight = requestedWeight.clamp(0.0, 70.0);
+  final existingScale = math.max(0.0, 1 - (cappedWeight / 100));
+
+  for (final state in map.values) {
+    state.afterValue = state.afterValue * existingScale;
+  }
+
+  for (final etf in etfs) {
+    final key = _normalizeTicker(etf.symbol).toUpperCase();
+    final state = map.putIfAbsent(
+      key,
+      () => _MutableHoldingState(
+        assetName: etf.name,
+        symbol: key,
+        beforeValue: 0,
+        afterValue: 0,
+      ),
+    );
+    state.assetName = etf.name;
+    final amount = totalReferenceValue * (etf.suggestedWeightPct / 100);
+    state.afterValue += math.max(0, amount);
+  }
+}
+
+void _normalizeHoldingStateTotal(
+    Map<String, _MutableHoldingState> map, double targetTotal) {
+  if (targetTotal <= 0) return;
+  final currentTotal =
+      map.values.fold<double>(0, (sum, item) => sum + item.afterValue);
+  if (currentTotal <= 0) return;
+
+  final ratio = targetTotal / currentTotal;
+  for (final state in map.values) {
+    state.afterValue = state.afterValue * ratio;
+  }
+}
+
+List<_ScenarioHoldingPreview> _toScenarioHoldingPreview(
+    Map<String, _MutableHoldingState> map) {
+  final list = map.values
+      .where((state) => state.beforeValue > 1 || state.afterValue > 1)
+      .map((state) => _ScenarioHoldingPreview(
+            assetName: state.assetName,
+            symbol: state.symbol,
+            beforeValue: state.beforeValue,
+            afterValue: state.afterValue,
+          ))
+      .toList();
+  list.sort((a, b) => b.afterValue.compareTo(a.afterValue));
+  return list;
 }
 
 class _AdviceMetricDeltaTile extends StatelessWidget {
@@ -1326,21 +2570,35 @@ class _AdviceMetricDeltaTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tileBg = isDark ? const Color(0xFF12213A) : const Color(0xFFF7FCFA);
+    final tileBorder =
+        isDark ? const Color(0xFF2A3E63) : const Color(0xFFD0E4DE);
+    final titleText =
+        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5D7A7E);
+    final valueText =
+        isDark ? const Color(0xFFF3F6FF) : const Color(0xFF1E3742);
+    final beforeAfterText =
+        isDark ? const Color(0xFFD3DCF0) : const Color(0xFF355056);
+    final arrowText =
+        isDark ? const Color(0xFF7E90B2) : const Color(0xFF7E9AA0);
+
     final delta = after - before;
     final deltaColor =
         delta >= 0 ? const Color(0xFFFF6B81) : const Color(0xFF5CA8FF);
     final beforeText = '${before.toStringAsFixed(decimals)}$unit';
     final afterText = '${after.toStringAsFixed(decimals)}$unit';
-    final deltaText =
-        '${delta >= 0 ? '+' : ''}${delta.toStringAsFixed(decimals)}$unit';
+    final deltaText = delta == 0
+        ? '변화 없음'
+        : '${delta > 0 ? '상향' : '하향'} ${delta.abs().toStringAsFixed(decimals)}$unit';
 
     return Container(
       width: 232,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       decoration: BoxDecoration(
-        color: const Color(0xFF12213A),
+        color: tileBg,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF2A3E63)),
+        border: Border.all(color: tileBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1349,8 +2607,7 @@ class _AdviceMetricDeltaTile extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(title,
-                    style: const TextStyle(
-                        color: Color(0xFF8EA0C1), fontSize: 12)),
+                    style: TextStyle(color: titleText, fontSize: 12)),
               ),
               if (helpText != null)
                 _InfoBubbleIcon(
@@ -1362,25 +2619,22 @@ class _AdviceMetricDeltaTile extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             afterText,
-            style: const TextStyle(
-                color: Color(0xFFF3F6FF),
-                fontWeight: FontWeight.w900,
-                fontSize: 15),
+            style: TextStyle(
+                color: valueText, fontWeight: FontWeight.w900, fontSize: 15),
           ),
           const SizedBox(height: 3),
           Row(
             children: [
               Text(beforeText,
-                  style:
-                      const TextStyle(color: Color(0xFF8EA0C1), fontSize: 11)),
-              const Padding(
+                  style: TextStyle(color: titleText, fontSize: 11)),
+              Padding(
                 padding: EdgeInsets.symmetric(horizontal: 3),
                 child: Icon(Icons.arrow_forward_rounded,
-                    size: 13, color: Color(0xFF7E90B2)),
+                    size: 13, color: arrowText),
               ),
               Text(afterText,
-                  style: const TextStyle(
-                      color: Color(0xFFD3DCF0),
+                  style: TextStyle(
+                      color: beforeAfterText,
                       fontWeight: FontWeight.w700,
                       fontSize: 11)),
               const Spacer(),
@@ -1413,11 +2667,21 @@ class _InfoBubbleIcon extends StatefulWidget {
 class _InfoBubbleIconState extends State<_InfoBubbleIcon> {
   final LayerLink _layerLink = LayerLink();
   OverlayEntry? _entry;
+  Timer? _hoverCloseTimer;
+  bool _isIconHovered = false;
+  bool _isBubbleHovered = false;
 
   bool get _isOpen => _entry != null;
+  bool get _preferHover {
+    if (kIsWeb) return true;
+    return defaultTargetPlatform == TargetPlatform.windows ||
+        defaultTargetPlatform == TargetPlatform.macOS ||
+        defaultTargetPlatform == TargetPlatform.linux;
+  }
 
   @override
   void dispose() {
+    _hoverCloseTimer?.cancel();
     _close();
     super.dispose();
   }
@@ -1431,6 +2695,7 @@ class _InfoBubbleIconState extends State<_InfoBubbleIcon> {
   }
 
   void _open() {
+    if (_isOpen) return;
     final overlay = Overlay.of(context, rootOverlay: true);
     _entry = OverlayEntry(
       builder: (context) {
@@ -1439,127 +2704,143 @@ class _InfoBubbleIconState extends State<_InfoBubbleIcon> {
         final guide = _guideForTitle(widget.title);
         return Stack(
           children: [
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _close,
-                child: const SizedBox.expand(),
+            if (!_preferHover)
+              Positioned.fill(
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: _close,
+                  child: const SizedBox.expand(),
+                ),
               ),
-            ),
             CompositedTransformFollower(
               link: _layerLink,
               showWhenUnlinked: false,
               targetAnchor: Alignment.topRight,
               followerAnchor: Alignment.bottomRight,
               offset: const Offset(0, -8),
-              child: Material(
-                color: Colors.transparent,
-                child: SizedBox(
-                  width: bubbleWidth,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF182843),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFF3A5585)),
-                          boxShadow: const [
-                            BoxShadow(
-                              color: Color(0x55070C16),
-                              blurRadius: 18,
-                              offset: Offset(0, 8),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    widget.title,
-                                    style: const TextStyle(
-                                      color: Color(0xFFE9F0FF),
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 12,
+              child: MouseRegion(
+                onEnter: (_) {
+                  if (!_preferHover) return;
+                  _hoverCloseTimer?.cancel();
+                  _isBubbleHovered = true;
+                },
+                onExit: (_) {
+                  if (!_preferHover) return;
+                  _isBubbleHovered = false;
+                  _scheduleHoverClose();
+                },
+                child: Material(
+                  color: Colors.transparent,
+                  child: SizedBox(
+                    width: bubbleWidth,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.fromLTRB(12, 10, 12, 11),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF182843),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: const Color(0xFF3A5585)),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Color(0x55070C16),
+                                blurRadius: 18,
+                                offset: Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      widget.title,
+                                      style: const TextStyle(
+                                        color: Color(0xFFE9F0FF),
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 12,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 6),
-                                const Text(
-                                  '설명',
-                                  style: TextStyle(
-                                    color: Color(0xFF8EA0C1),
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w700,
+                                  const SizedBox(width: 6),
+                                  const Text(
+                                    '설명',
+                                    style: TextStyle(
+                                      color: Color(0xFF8EA0C1),
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              widget.message,
-                              style: const TextStyle(
-                                color: Color(0xFFD6E1F8),
-                                fontSize: 12,
-                                height: 1.36,
-                                fontWeight: FontWeight.w600,
+                                ],
                               ),
-                            ),
-                            if (guide != null) ...[
-                              const SizedBox(height: 8),
-                              Container(
-                                width: double.infinity,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 9,
-                                  vertical: 8,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF0F1D33),
-                                  borderRadius: BorderRadius.circular(9),
-                                  border:
-                                      Border.all(color: const Color(0xFF2C4470)),
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    _guideLine('보통 범위', guide.normalRange),
-                                    const SizedBox(height: 3),
-                                    _guideLine('낮으면', guide.lowInterpretation),
-                                    const SizedBox(height: 3),
-                                    _guideLine('높으면', guide.highInterpretation),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 7),
+                              const SizedBox(height: 6),
                               Text(
-                                '체크 포인트: ${guide.actionHint}',
+                                widget.message,
                                 style: const TextStyle(
-                                  color: Color(0xFF9FB4D8),
-                                  fontSize: 11,
-                                  height: 1.35,
+                                  color: Color(0xFFD6E1F8),
+                                  fontSize: 12,
+                                  height: 1.36,
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
+                              if (guide != null) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 9,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0F1D33),
+                                    borderRadius: BorderRadius.circular(9),
+                                    border: Border.all(
+                                        color: const Color(0xFF2C4470)),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      _guideLine('보통 범위', guide.normalRange),
+                                      const SizedBox(height: 3),
+                                      _guideLine(
+                                          '낮으면', guide.lowInterpretation),
+                                      const SizedBox(height: 3),
+                                      _guideLine(
+                                          '높으면', guide.highInterpretation),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 7),
+                                Text(
+                                  '체크 포인트: ${guide.actionHint}',
+                                  style: const TextStyle(
+                                    color: Color(0xFF9FB4D8),
+                                    fontSize: 11,
+                                    height: 1.35,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
                             ],
-                          ],
-                        ),
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.only(right: 5),
-                        child: CustomPaint(
-                          size: const Size(16, 8),
-                          painter: const _InfoBubbleTailPainter(
-                            fillColor: Color(0xFF182843),
-                            borderColor: Color(0xFF3A5585),
                           ),
                         ),
-                      ),
-                    ],
+                        Padding(
+                          padding: const EdgeInsets.only(right: 5),
+                          child: CustomPaint(
+                            size: const Size(16, 8),
+                            painter: const _InfoBubbleTailPainter(
+                              fillColor: Color(0xFF182843),
+                              borderColor: Color(0xFF3A5585),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -1572,8 +2853,20 @@ class _InfoBubbleIconState extends State<_InfoBubbleIcon> {
   }
 
   void _close() {
+    _hoverCloseTimer?.cancel();
+    _isIconHovered = false;
+    _isBubbleHovered = false;
     _entry?.remove();
     _entry = null;
+  }
+
+  void _scheduleHoverClose() {
+    _hoverCloseTimer?.cancel();
+    _hoverCloseTimer = Timer(const Duration(milliseconds: 80), () {
+      if (!_isIconHovered && !_isBubbleHovered) {
+        _close();
+      }
+    });
   }
 
   Widget _guideLine(String label, String value) {
@@ -1617,7 +2910,9 @@ class _InfoBubbleIconState extends State<_InfoBubbleIcon> {
         actionHint: '변동성이 높으면 비중 쏠림부터 점검해요.',
       );
     }
-    if (title.contains('MDD') || title.contains('낙폭') || t.contains('drawdown')) {
+    if (title.contains('MDD') ||
+        title.contains('낙폭') ||
+        t.contains('drawdown')) {
       return const _MetricGuide(
         normalRange: '-10% ~ -25% 구간에서 많이 관리해요.',
         lowInterpretation: '절대값이 작을수록 큰 하락 방어가 좋아요.',
@@ -1641,7 +2936,9 @@ class _InfoBubbleIconState extends State<_InfoBubbleIcon> {
         actionHint: '수익률 목표와 감당 가능한 변동성을 같이 맞춰요.',
       );
     }
-    if (title.contains('최대 종목 비중') || title.contains('집중') || t.contains('concentration')) {
+    if (title.contains('최대 종목 비중') ||
+        title.contains('집중') ||
+        t.contains('concentration')) {
       return const _MetricGuide(
         normalRange: '단일 종목 20~35% 이하를 많이 권장해요.',
         lowInterpretation: '낮을수록 특정 종목 리스크 영향이 줄어요.',
@@ -1656,13 +2953,26 @@ class _InfoBubbleIconState extends State<_InfoBubbleIcon> {
   Widget build(BuildContext context) {
     return CompositedTransformTarget(
       link: _layerLink,
-      child: GestureDetector(
-        onTap: _toggle,
-        behavior: HitTestBehavior.opaque,
-        child: const Padding(
-          padding: EdgeInsets.all(2),
-          child:
-              Icon(Icons.info_outline_rounded, size: 14, color: Color(0xFF8EA0C1)),
+      child: MouseRegion(
+        onEnter: (_) {
+          if (!_preferHover) return;
+          _hoverCloseTimer?.cancel();
+          _isIconHovered = true;
+          _open();
+        },
+        onExit: (_) {
+          if (!_preferHover) return;
+          _isIconHovered = false;
+          _scheduleHoverClose();
+        },
+        child: GestureDetector(
+          onTap: _preferHover ? null : _toggle,
+          behavior: HitTestBehavior.opaque,
+          child: const Padding(
+            padding: EdgeInsets.all(2),
+            child: Icon(Icons.info_outline_rounded,
+                size: 14, color: Color(0xFF8EA0C1)),
+          ),
         ),
       ),
     );
@@ -2035,6 +3345,20 @@ class _PortfolioSimulationCardState
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final subText = isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5E7A7D);
+    final panelBg = isDark ? const Color(0xFF12213A) : const Color(0xFFF0F8F5);
+    final panelBorder =
+        isDark ? const Color(0xFF2A3E63) : const Color(0xFFD0E4DE);
+    final panelText =
+        isDark ? const Color(0xFFD3DCF0) : const Color(0xFF355056);
+    final sectionTitle =
+        isDark ? const Color(0xFFDDE7FF) : const Color(0xFF1E3742);
+    final emptyText =
+        isDark ? const Color(0xFF9AA7C0) : const Color(0xFF5D7A7E);
+    final errorText =
+        isDark ? const Color(0xFFFF7B87) : const Color(0xFFC7394A);
+
     final query =
         PortfolioSimulationQuery(startDate: _startDate, endDate: _endDate);
     final simulationAsync = ref.watch(portfolioSimulationProvider(query));
@@ -2059,9 +3383,9 @@ class _PortfolioSimulationCardState
               ],
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               '현재 보유 수량을 과거 가격에 대입해 특정 기간 수익을 재현해요.',
-              style: TextStyle(color: Color(0xFF8EA0C1), fontSize: 12),
+              style: TextStyle(color: subText, fontSize: 12),
             ),
             const SizedBox(height: 10),
             Wrap(
@@ -2124,15 +3448,14 @@ class _PortfolioSimulationCardState
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 9),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF12213A),
+                        color: panelBg,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFF2A3E63)),
+                        border: Border.all(color: panelBorder),
                       ),
                       child: Text(
                         '시뮬레이션 기간: ${data.startDate} ~ ${data.endDate} (${data.simulationDays}일)',
-                        style: const TextStyle(
-                            color: Color(0xFFD3DCF0),
-                            fontWeight: FontWeight.w700),
+                        style: TextStyle(
+                            color: panelText, fontWeight: FontWeight.w700),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -2169,9 +3492,9 @@ class _PortfolioSimulationCardState
                     ),
                     const SizedBox(height: 10),
                     if (data.timeline.isNotEmpty) ...[
-                      const Text('기간 누적 수익 곡선',
+                      Text('기간 누적 수익 곡선',
                           style: TextStyle(
-                              color: Color(0xFFDDE7FF),
+                              color: sectionTitle,
                               fontWeight: FontWeight.w800)),
                       const SizedBox(height: 8),
                       SizedBox(
@@ -2180,14 +3503,12 @@ class _PortfolioSimulationCardState
                               _SimulationTrendChart(timeline: data.timeline)),
                     ],
                     const SizedBox(height: 10),
-                    const Text('종목 기여도 TOP',
+                    Text('종목 기여도 TOP',
                         style: TextStyle(
-                            color: Color(0xFFDDE7FF),
-                            fontWeight: FontWeight.w800)),
+                            color: sectionTitle, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 6),
                     if (visibleContributions.isEmpty)
-                      const Text('기여도 데이터가 없습니다.',
-                          style: TextStyle(color: Color(0xFF9AA7C0)))
+                      Text('기여도 데이터가 없습니다.', style: TextStyle(color: emptyText))
                     else
                       AnimatedSize(
                         duration: const Duration(milliseconds: 220),
@@ -2203,10 +3524,9 @@ class _PortfolioSimulationCardState
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 10, vertical: 10),
                               decoration: BoxDecoration(
-                                color: const Color(0xFF12213A),
+                                color: panelBg,
                                 borderRadius: BorderRadius.circular(10),
-                                border:
-                                    Border.all(color: const Color(0xFF2A3E63)),
+                                border: Border.all(color: panelBorder),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2216,8 +3536,8 @@ class _PortfolioSimulationCardState
                                       Expanded(
                                         child: Text(
                                           '${item.assetName} (${_normalizeTicker(item.symbol)})',
-                                          style: const TextStyle(
-                                              color: Color(0xFFE8EEFF),
+                                          style: TextStyle(
+                                              color: sectionTitle,
                                               fontWeight: FontWeight.w800),
                                         ),
                                       ),
@@ -2232,8 +3552,8 @@ class _PortfolioSimulationCardState
                                   const SizedBox(height: 3),
                                   Text(
                                     '기여 손익 ${up ? '+' : ''}${won.format(item.pnlAmount)} / 시작 ${won.format(item.startPrice)} → 기준 ${won.format(item.endPrice)}',
-                                    style: const TextStyle(
-                                        color: Color(0xFFD3DCF0), fontSize: 12),
+                                    style: TextStyle(
+                                        color: panelText, fontSize: 12),
                                   ),
                                 ],
                               ),
@@ -2251,15 +3571,15 @@ class _PortfolioSimulationCardState
                         onCollapse: _collapseContributions,
                       ),
                     const SizedBox(height: 4),
-                    ...data.notes.map(_note),
+                    ..._resolvedSimulationNotes(data.notes).map(_note),
                   ],
                 );
               },
               loading: () => const SizedBox(
                   height: 220,
                   child: Center(child: CircularProgressIndicator())),
-              error: (e, _) => Text('시뮬레이터 로딩 실패: $e',
-                  style: const TextStyle(color: Color(0xFFFF7B87))),
+              error: (e, _) =>
+                  Text('시뮬레이터 로딩 실패: $e', style: TextStyle(color: errorText)),
             ),
           ],
         ),
@@ -2268,18 +3588,23 @@ class _PortfolioSimulationCardState
   }
 
   Widget _metric(String label, String value, Color valueColor) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tileBg = isDark ? const Color(0xFF12213A) : const Color(0xFFF7FCFA);
+    final tileBorder =
+        isDark ? const Color(0xFF2A3E63) : const Color(0xFFD0E4DE);
+    final labelColor =
+        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5D7A7E);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xFF12213A),
+        color: tileBg,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF2A3E63)),
+        border: Border.all(color: tileBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: const TextStyle(color: Color(0xFF8EA0C1), fontSize: 12)),
+          Text(label, style: TextStyle(color: labelColor, fontSize: 12)),
           const SizedBox(height: 2),
           Text(value,
               style: TextStyle(color: valueColor, fontWeight: FontWeight.w900)),
@@ -2289,12 +3614,15 @@ class _PortfolioSimulationCardState
   }
 
   Widget _presetButton(String label, VoidCallback onTap) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
         visualDensity: VisualDensity.compact,
-        side: const BorderSide(color: Color(0xFF314A74)),
-        foregroundColor: const Color(0xFFD5E0F5),
+        side: BorderSide(
+            color: isDark ? const Color(0xFF314A74) : const Color(0xFF7D94C8)),
+        foregroundColor:
+            isDark ? const Color(0xFFD5E0F5) : const Color(0xFF405F94),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       ),
       child: Text(label),
@@ -2302,24 +3630,49 @@ class _PortfolioSimulationCardState
   }
 
   Widget _note(String text) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final iconColor =
+        isDark ? const Color(0xFF90A8CF) : const Color(0xFF5A7FA0);
+    final noteText = isDark ? const Color(0xFF9FB0CD) : const Color(0xFF4F6B71);
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.only(top: 5),
-            child: Icon(Icons.info_outline_rounded,
-                size: 14, color: Color(0xFF90A8CF)),
+            child: Icon(Icons.info_outline_rounded, size: 14, color: iconColor),
           ),
           const SizedBox(width: 6),
           Expanded(
               child: Text(text,
-                  style: const TextStyle(
-                      color: Color(0xFF9FB0CD), fontSize: 12, height: 1.35))),
+                  style:
+                      TextStyle(color: noteText, fontSize: 12, height: 1.35))),
         ],
       ),
     );
+  }
+
+  List<String> _resolvedSimulationNotes(List<String> notes) {
+    final filtered = notes.where((note) => !_looksMojibake(note)).toList();
+    if (filtered.isNotEmpty) {
+      return filtered;
+    }
+    return const [
+      '실제 체결가, 수수료, 세금 반영 시 수익 결과가 달라질 수 있어요.',
+      '연환산 수익률은 장기 비교용으로 보고, 단기 성과는 누적 수익률로 함께 확인해요.',
+      '종목 기여도는 보유수량 기준 추정값이므로 리밸런싱 계획과 같이 봐 주세요.',
+    ];
+  }
+
+  bool _looksMojibake(String text) {
+    final hasHangul = RegExp(r'[가-힣]').hasMatch(text);
+    if (hasHangul) {
+      return false;
+    }
+    final hasSuspiciousMark = text.contains('??') || text.contains('\uFFFD');
+    final nonAsciiCount = text.runes.where((r) => r > 127).length;
+    return hasSuspiciousMark || nonAsciiCount >= 3;
   }
 
   String _formatDate(DateTime? value) {
@@ -2344,6 +3697,9 @@ class _SimulationTrendChart extends StatelessWidget {
     final maxY = values.reduce(math.max);
     final bound = math.max(maxY.abs(), minY.abs());
     final yRange = bound < 1 ? 2.0 : bound * 1.25;
+    final verticalInterval = timeline.length <= 2
+        ? 1.0
+        : math.max(1.0, ((timeline.length - 1) / 6).roundToDouble());
 
     return LineChart(
       LineChartData(
@@ -2353,12 +3709,20 @@ class _SimulationTrendChart extends StatelessWidget {
         maxY: yRange,
         gridData: FlGridData(
           show: true,
-          drawVerticalLine: false,
+          drawVerticalLine: true,
+          verticalInterval: verticalInterval,
           horizontalInterval: yRange / 4,
           getDrawingHorizontalLine: (value) {
             if (value.abs() < 0.0001)
               return const FlLine(color: Color(0x664C8DFF), strokeWidth: 1.2);
             return const FlLine(color: Color(0x202B3B58), strokeWidth: 1);
+          },
+          getDrawingVerticalLine: (value) {
+            return const FlLine(
+              color: Color(0x1E3E5B86),
+              strokeWidth: 1,
+              dashArray: [3, 6],
+            );
           },
         ),
         borderData: FlBorderData(show: false),
@@ -2493,6 +3857,18 @@ class _RebalancingActionsCardState extends State<_RebalancingActionsCard> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleText =
+        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5E7A7D);
+    final bodyText = isDark ? const Color(0xFFD3DCF0) : const Color(0xFF335055);
+    final mutedText =
+        isDark ? const Color(0xFF9AA7C0) : const Color(0xFF647E81);
+    final tileBg = isDark ? const Color(0xFF12213A) : const Color(0xFFF7FCFA);
+    final tileBorder =
+        isDark ? const Color(0xFF2A3E63) : const Color(0xFFD0E4DE);
+    final tileTitle =
+        isDark ? const Color(0xFFE8EEFF) : const Color(0xFF1E3742);
+
     final won =
         NumberFormat.currency(locale: 'ko_KR', symbol: '₩', decimalDigits: 0);
     final actions = widget.actions.take(_visibleCount).toList();
@@ -2515,8 +3891,8 @@ class _RebalancingActionsCardState extends State<_RebalancingActionsCard> {
               ],
             ),
             const SizedBox(height: 6),
-            const Text('목표 비중 대비 이탈 구간을 우선순위로 정렬했습니다.',
-                style: TextStyle(color: Color(0xFF8EA0C1), fontSize: 12)),
+            Text('목표 비중 대비 이탈 구간을 우선순위로 정렬했습니다.',
+                style: TextStyle(color: titleText, fontSize: 12)),
             const SizedBox(height: 10),
             AnimatedSize(
               duration: const Duration(milliseconds: 220),
@@ -2531,7 +3907,7 @@ class _RebalancingActionsCardState extends State<_RebalancingActionsCard> {
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: const Color(0x5565D6A5)),
                       ),
-                      child: const Column(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('현재 비중은 안정 구간이에요.',
@@ -2540,78 +3916,125 @@ class _RebalancingActionsCardState extends State<_RebalancingActionsCard> {
                                   fontWeight: FontWeight.w800)),
                           SizedBox(height: 4),
                           Text('운영전략 1) 월 1회만 점검하고 허용오차(±3%) 이탈 시에만 조정',
-                              style: TextStyle(
-                                  color: Color(0xFFD3DCF0), fontSize: 12)),
+                              style: TextStyle(color: bodyText, fontSize: 12)),
                           Text('운영전략 2) 신규 자금 유입분으로만 목표 비중 보정',
-                              style: TextStyle(
-                                  color: Color(0xFFD3DCF0), fontSize: 12)),
+                              style: TextStyle(color: bodyText, fontSize: 12)),
                           Text('운영전략 3) 과도한 매매 대신 리스크 임계치 알림 기반 대응',
-                              style: TextStyle(
-                                  color: Color(0xFFD3DCF0), fontSize: 12)),
+                              style: TextStyle(color: bodyText, fontSize: 12)),
                         ],
                       ),
                     )
                   : Column(
-                      children: actions.map((action) {
-                        final buy = action.action == 'BUY';
-                        final accent = buy
-                            ? const Color(0xFF5CA8FF)
-                            : const Color(0xFFFF6B81);
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 10),
+                      children: [
+                        Container(
                           decoration: BoxDecoration(
-                            color: const Color(0xFF12213A),
+                            color: tileBg,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFF2A3E63)),
+                            border: Border.all(color: tileBorder),
                           ),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      '${action.assetName} (${_normalizeTicker(action.symbol)})',
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w800,
-                                          color: Color(0xFFE8EEFF)),
-                                    ),
+                              for (int i = 0; i < actions.length; i++) ...[
+                                if (i > 0)
+                                  Divider(
+                                    height: 1,
+                                    thickness: 1,
+                                    color: tileBorder,
                                   ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8, vertical: 3),
-                                    decoration: BoxDecoration(
-                                      color: accent.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(999),
-                                    ),
-                                    child: Text(
-                                      buy ? '비중 확대' : '비중 축소',
-                                      style: TextStyle(
-                                          color: accent,
-                                          fontWeight: FontWeight.w900,
-                                          fontSize: 11),
-                                    ),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 10),
+                                  child: Builder(
+                                    builder: (context) {
+                                      final action = actions[i];
+                                      final buy = action.action == 'BUY';
+                                      final accent = buy
+                                          ? const Color(0xFF5CA8FF)
+                                          : const Color(0xFFFF6B81);
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  '${action.assetName} (${_normalizeTicker(action.symbol)})',
+                                                  style: TextStyle(
+                                                      fontWeight:
+                                                          FontWeight.w800,
+                                                      color: tileTitle),
+                                                ),
+                                              ),
+                                              Container(
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        horizontal: 8,
+                                                        vertical: 3),
+                                                decoration: BoxDecoration(
+                                                  color:
+                                                      accent.withOpacity(0.2),
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                          999),
+                                                ),
+                                                child: Row(
+                                                  mainAxisSize:
+                                                      MainAxisSize.min,
+                                                  children: [
+                                                    Icon(
+                                                      buy
+                                                          ? Icons
+                                                              .add_shopping_cart_rounded
+                                                          : Icons.sell_rounded,
+                                                      size: 12,
+                                                      color: accent,
+                                                    ),
+                                                    const SizedBox(width: 4),
+                                                    Text(
+                                                      buy ? '매수 제안' : '매도 제안',
+                                                      style: TextStyle(
+                                                          color: accent,
+                                                          fontWeight:
+                                                              FontWeight.w900,
+                                                          fontSize: 11),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            '현재 ${action.currentWeightPct.toStringAsFixed(1)}% → 목표 ${action.targetWeightPct.toStringAsFixed(1)}%',
+                                            style: TextStyle(
+                                                color: bodyText, fontSize: 12),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '${buy ? '매수' : '매도'} 금액 ${won.format(action.suggestedAmount)}',
+                                            style: TextStyle(
+                                              color: accent,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            action.reason,
+                                            style: TextStyle(
+                                                color: mutedText, fontSize: 12),
+                                          ),
+                                        ],
+                                      );
+                                    },
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '현재 ${action.currentWeightPct.toStringAsFixed(1)}% → 목표 ${action.targetWeightPct.toStringAsFixed(1)}% / 권장 ${won.format(action.suggestedAmount)}',
-                                style: const TextStyle(
-                                    color: Color(0xFFD3DCF0), fontSize: 12),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                action.reason,
-                                style: const TextStyle(
-                                    color: Color(0xFF9AA7C0), fontSize: 12),
-                              ),
+                                ),
+                              ],
                             ],
                           ),
-                        );
-                      }).toList(),
+                        ),
+                      ],
                     ),
             ),
             if (widget.actions.length > _initialCount(widget.actions.length))
@@ -2680,6 +4103,18 @@ class _EtfRecommendationCardState extends State<_EtfRecommendationCard> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleText =
+        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5E7A7D);
+    final bodyText = isDark ? const Color(0xFFD3DCF0) : const Color(0xFF335055);
+    final mutedText =
+        isDark ? const Color(0xFF9AA7C0) : const Color(0xFF647E81);
+    final tileBg = isDark ? const Color(0xFF12213A) : const Color(0xFFF7FCFA);
+    final tileBorder =
+        isDark ? const Color(0xFF2A3E63) : const Color(0xFFD0E4DE);
+    final tileTitle =
+        isDark ? const Color(0xFFE8EEFF) : const Color(0xFF1E3742);
+
     final recommendations = widget.recommendations.take(_visibleCount).toList();
     final canExpand = _visibleCount < widget.recommendations.length;
     final canCollapse =
@@ -2701,8 +4136,8 @@ class _EtfRecommendationCardState extends State<_EtfRecommendationCard> {
               ],
             ),
             const SizedBox(height: 6),
-            const Text('위험수준과 집중도를 반영한 대체 포지션 제안이에요.',
-                style: TextStyle(color: Color(0xFF8EA0C1), fontSize: 12)),
+            Text('위험수준과 집중도를 반영한 대체 포지션 제안이에요.',
+                style: TextStyle(color: titleText, fontSize: 12)),
             const SizedBox(height: 10),
             AnimatedSize(
               duration: const Duration(milliseconds: 220),
@@ -2717,7 +4152,7 @@ class _EtfRecommendationCardState extends State<_EtfRecommendationCard> {
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(color: const Color(0x553E6CB0)),
                       ),
-                      child: const Column(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('현재 포트폴리오와 위험성향 기준으로 즉시 교체할 ETF는 없습니다.',
@@ -2726,64 +4161,86 @@ class _EtfRecommendationCardState extends State<_EtfRecommendationCard> {
                                   fontWeight: FontWeight.w800)),
                           SizedBox(height: 4),
                           Text('도움말) 신규 매수할 때는 저비용 광역지수 ETF를 먼저 비교해 보세요.',
-                              style: TextStyle(
-                                  color: Color(0xFFD3DCF0), fontSize: 12)),
+                              style: TextStyle(color: bodyText, fontSize: 12)),
                         ],
                       ),
                     )
                   : Column(
-                      children: recommendations.map((etf) {
-                        final color = etf.riskBucket == 'LOW'
-                            ? const Color(0xFF65D6A5)
-                            : etf.riskBucket == 'MID'
-                                ? const Color(0xFFFFC56B)
-                                : const Color(0xFFFF6B81);
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 10),
+                      children: [
+                        Container(
                           decoration: BoxDecoration(
-                            color: const Color(0xFF12213A),
+                            color: tileBg,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFF2A3E63)),
+                            border: Border.all(color: tileBorder),
                           ),
                           child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      '${etf.symbol} ${etf.name}',
-                                      style: const TextStyle(
-                                          color: Color(0xFFE8EEFF),
-                                          fontWeight: FontWeight.w800),
-                                    ),
+                              for (int i = 0;
+                                  i < recommendations.length;
+                                  i++) ...[
+                                if (i > 0)
+                                  Divider(
+                                    height: 1,
+                                    thickness: 1,
+                                    color: tileBorder,
                                   ),
-                                  Text(
-                                    '${etf.matchScore}점',
-                                    style: TextStyle(
-                                        color: color,
-                                        fontWeight: FontWeight.w900),
+                                Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 10, vertical: 10),
+                                  child: Builder(
+                                    builder: (context) {
+                                      final etf = recommendations[i];
+                                      final color = etf.riskBucket == 'LOW'
+                                          ? const Color(0xFF65D6A5)
+                                          : etf.riskBucket == 'MID'
+                                              ? const Color(0xFFFFC56B)
+                                              : const Color(0xFFFF6B81);
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Row(
+                                            children: [
+                                              Expanded(
+                                                child: Text(
+                                                  '${etf.symbol} ${etf.name}',
+                                                  style: TextStyle(
+                                                      color: tileTitle,
+                                                      fontWeight:
+                                                          FontWeight.w800),
+                                                ),
+                                              ),
+                                              Text(
+                                                '${etf.matchScore}점',
+                                                style: TextStyle(
+                                                    color: color,
+                                                    fontWeight:
+                                                        FontWeight.w900),
+                                              ),
+                                            ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            '${etf.focusTheme} · 권장 비중 ${etf.suggestedWeightPct.toStringAsFixed(1)}% · 총보수 ${etf.expenseRatioPct.toStringAsFixed(4)}%',
+                                            style: TextStyle(
+                                                color: bodyText, fontSize: 12),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            etf.reason,
+                                            style: TextStyle(
+                                                color: mutedText, fontSize: 12),
+                                          ),
+                                        ],
+                                      );
+                                    },
                                   ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                '${etf.focusTheme} · 권장 비중 ${etf.suggestedWeightPct.toStringAsFixed(1)}% · 총보수 ${etf.expenseRatioPct.toStringAsFixed(4)}%',
-                                style: const TextStyle(
-                                    color: Color(0xFFD3DCF0), fontSize: 12),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                etf.reason,
-                                style: const TextStyle(
-                                    color: Color(0xFF9AA7C0), fontSize: 12),
-                              ),
+                                ),
+                              ],
                             ],
                           ),
-                        );
-                      }).toList(),
+                        ),
+                      ],
                     ),
             ),
             if (widget.recommendations.length >
@@ -2853,6 +4310,21 @@ class _HoldingAssetCardState extends State<_HoldingAssetCard> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final tileBg = isDark ? const Color(0xFF182540) : const Color(0xFFF4FBF9);
+    final tileBorder =
+        isDark ? const Color(0xFF2E446A) : const Color(0xFFD2E6E0);
+    final cardTitleText =
+        isDark ? const Color(0xFFF3F6FF) : const Color(0xFF1F3842);
+    final cardSubText =
+        isDark ? const Color(0xFF91A0BC) : const Color(0xFF5D7A7E);
+    final summaryBg =
+        isDark ? const Color(0xFF12213A) : const Color(0xFFF0F8F5);
+    final summaryBorder =
+        isDark ? const Color(0xFF2A3E63) : const Color(0xFFD0E4DE);
+    final summaryLabel =
+        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF567377);
+
     final won =
         NumberFormat.currency(locale: 'ko_KR', symbol: '₩', decimalDigits: 0);
     final positions = widget.positions.take(_visibleCount).toList();
@@ -2886,67 +4358,83 @@ class _HoldingAssetCardState extends State<_HoldingAssetCard> {
             AnimatedSize(
               duration: const Duration(milliseconds: 220),
               curve: Curves.easeOutCubic,
-              child: Column(
-                children: positions.map((p) {
-                  final up = p.pnlRate >= 0;
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF182540),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF2E446A)),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 3,
-                          height: 34,
-                          margin: const EdgeInsets.only(right: 8),
-                          decoration: BoxDecoration(
-                            color: up
-                                ? const Color(0xFFFF6B81)
-                                : const Color(0xFF5CA8FF),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: tileBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: tileBorder),
+                ),
+                child: Column(
+                  children: [
+                    for (int i = 0; i < positions.length; i++) ...[
+                      if (i > 0)
+                        Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: tileBorder,
                         ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(p.assetName,
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                      color: Color(0xFFF3F6FF))),
-                              const SizedBox(height: 2),
-                              Text('${_normalizeTicker(p.symbol)}',
-                                  style: const TextStyle(
-                                      color: Color(0xFF91A0BC), fontSize: 12)),
-                            ],
-                          ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 10),
+                        child: Builder(
+                          builder: (context) {
+                            final p = positions[i];
+                            final up = p.pnlRate >= 0;
+                            return Row(
+                              children: [
+                                Container(
+                                  width: 3,
+                                  height: 34,
+                                  margin: const EdgeInsets.only(right: 8),
+                                  decoration: BoxDecoration(
+                                    color: up
+                                        ? const Color(0xFFFF6B81)
+                                        : const Color(0xFF5CA8FF),
+                                    borderRadius: BorderRadius.circular(999),
+                                  ),
+                                ),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(p.assetName,
+                                          style: TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              color: cardTitleText)),
+                                      const SizedBox(height: 2),
+                                      Text(_normalizeTicker(p.symbol),
+                                          style: TextStyle(
+                                              color: cardSubText,
+                                              fontSize: 12)),
+                                    ],
+                                  ),
+                                ),
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(won.format(p.valuation),
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            color: cardTitleText)),
+                                    Text(
+                                      '${up ? '+' : ''}${p.pnlRate.toStringAsFixed(2)}%',
+                                      style: TextStyle(
+                                          color: up
+                                              ? const Color(0xFFFF6B81)
+                                              : const Color(0xFF5CA8FF),
+                                          fontWeight: FontWeight.w700),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            );
+                          },
                         ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(won.format(p.valuation),
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    color: Color(0xFFF3F6FF))),
-                            Text(
-                              '${up ? '+' : ''}${p.pnlRate.toStringAsFixed(2)}%',
-                              style: TextStyle(
-                                  color: up
-                                      ? const Color(0xFFFF6B81)
-                                      : const Color(0xFF5CA8FF),
-                                  fontWeight: FontWeight.w700),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
             if (widget.positions.length >
@@ -2966,20 +4454,18 @@ class _HoldingAssetCardState extends State<_HoldingAssetCard> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
               decoration: BoxDecoration(
-                  color: const Color(0xFF12213A),
+                  color: summaryBg,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF2A3E63))),
+                  border: Border.all(color: summaryBorder)),
               child: Row(
                 children: [
-                  const Text('포트폴리오 합계',
+                  Text('포트폴리오 합계',
                       style: TextStyle(
-                          color: Color(0xFF8EA0C1),
-                          fontWeight: FontWeight.w800)),
+                          color: summaryLabel, fontWeight: FontWeight.w800)),
                   const Spacer(),
                   Text(won.format(totalValuation),
-                      style: const TextStyle(
-                          color: Color(0xFFF3F6FF),
-                          fontWeight: FontWeight.w800)),
+                      style: TextStyle(
+                          color: cardTitleText, fontWeight: FontWeight.w800)),
                   const SizedBox(width: 12),
                   Text(
                     '${totalProfit ? '+' : ''}${won.format(totalPnl)} (${totalProfit ? '+' : ''}${totalPnlRate.toStringAsFixed(2)}%)',
@@ -3006,17 +4492,19 @@ class _TopCountBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: const Color(0x1F5CA8FF),
+        color: isDark ? const Color(0x1F5CA8FF) : const Color(0x1F4FAE9A),
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: const Color(0x553E6CB0)),
+        border: Border.all(
+            color: isDark ? const Color(0x553E6CB0) : const Color(0x5567B6A8)),
       ),
       child: Text(
         label,
-        style: const TextStyle(
-          color: Color(0xFFBAD2FF),
+        style: TextStyle(
+          color: isDark ? const Color(0xFFBAD2FF) : const Color(0xFF2A6F66),
           fontWeight: FontWeight.w700,
           fontSize: 11,
         ),
@@ -3042,6 +4530,7 @@ class _ProgressiveRevealControl extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     if (!canExpand && !canCollapse) {
       return const SizedBox.shrink();
     }
@@ -3053,7 +4542,8 @@ class _ProgressiveRevealControl extends StatelessWidget {
           TextButton.icon(
             onPressed: onCollapse,
             style: TextButton.styleFrom(
-              foregroundColor: const Color(0xFF9FB3D8),
+              foregroundColor:
+                  isDark ? const Color(0xFF9FB3D8) : const Color(0xFF3B6A76),
               visualDensity: VisualDensity.compact,
             ),
             icon: const Icon(Icons.remove_circle_outline_rounded, size: 16),
@@ -3063,8 +4553,10 @@ class _ProgressiveRevealControl extends StatelessWidget {
           FilledButton.tonalIcon(
             onPressed: onExpand,
             style: FilledButton.styleFrom(
-              backgroundColor: const Color(0x2237D6B6),
-              foregroundColor: const Color(0xFFBFF8ED),
+              backgroundColor:
+                  isDark ? const Color(0x2237D6B6) : const Color(0x224FAE9A),
+              foregroundColor:
+                  isDark ? const Color(0xFFBFF8ED) : const Color(0xFF1F665C),
               visualDensity: VisualDensity.compact,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             ),
@@ -3134,4 +4626,3 @@ String _normalizeTicker(String symbol) {
   }
   return value;
 }
-

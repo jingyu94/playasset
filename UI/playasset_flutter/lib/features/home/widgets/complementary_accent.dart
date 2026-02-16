@@ -14,6 +14,12 @@ class ComplementaryAccent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderColor =
+        isDark ? const Color(0xFF2A3D62) : const Color(0xFFD3E0F8);
+    final iconColor =
+        isDark ? const Color(0xFFEAF1FF) : const Color(0xFF1B2C4D);
+
     return SizedBox(
       width: 54,
       height: 30,
@@ -33,7 +39,7 @@ class ComplementaryAccent extends StatelessWidget {
           Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: const Color(0xFF2A3D62)),
+              border: Border.all(color: borderColor),
               gradient: LinearGradient(
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
@@ -47,7 +53,7 @@ class ComplementaryAccent extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(icon, size: 14, color: const Color(0xFFEAF1FF)),
+                Icon(icon, size: 14, color: iconColor),
                 Container(
                   width: 6,
                   height: 6,

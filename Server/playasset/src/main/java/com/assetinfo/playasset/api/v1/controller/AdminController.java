@@ -15,10 +15,15 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.assetinfo.playasset.api.v1.admin.AdminService;
 import com.assetinfo.playasset.api.v1.auth.Authz;
+import com.assetinfo.playasset.api.v1.dto.AdminGroupResponse;
 import com.assetinfo.playasset.api.v1.dto.AdminUserResponse;
 import com.assetinfo.playasset.api.v1.dto.ApiResponse;
 import com.assetinfo.playasset.api.v1.dto.PaidServicePolicyResponse;
+import com.assetinfo.playasset.api.v1.dto.RuntimeConfigResponse;
+import com.assetinfo.playasset.api.v1.dto.UpdateGroupPermissionsRequest;
 import com.assetinfo.playasset.api.v1.dto.UpdatePaidServicePolicyRequest;
+import com.assetinfo.playasset.api.v1.dto.UpdateRuntimeConfigRequest;
+import com.assetinfo.playasset.api.v1.dto.UpdateUserGroupRequest;
 import com.assetinfo.playasset.api.v1.dto.UpdateUserRolesRequest;
 
 import jakarta.validation.Valid;
@@ -55,11 +60,49 @@ public class AdminController {
         return ApiResponse.ok(adminService.loadUsers());
     }
 
+    @GetMapping("/groups")
+    public ApiResponse<List<AdminGroupResponse>> groups() {
+        Authz.requireAdmin();
+        return ApiResponse.ok(adminService.loadGroups());
+    }
+
     @PutMapping("/users/{userId}/roles")
     public ApiResponse<AdminUserResponse> replaceUserRoles(
             @PathVariable long userId,
             @Valid @RequestBody UpdateUserRolesRequest request) {
         Authz.requireAdmin();
         return ApiResponse.ok(adminService.replaceUserRoles(userId, request.roles()));
+    }
+
+    @PutMapping("/users/{userId}/group")
+    public ApiResponse<AdminUserResponse> updateUserGroup(
+            @PathVariable long userId,
+            @Valid @RequestBody UpdateUserGroupRequest request) {
+        Authz.requireAdmin();
+        return ApiResponse.ok(adminService.updateUserGroup(userId, request));
+    }
+
+    @PutMapping("/groups/{groupId}/permissions")
+    public ApiResponse<AdminGroupResponse> replaceGroupPermissions(
+            @PathVariable long groupId,
+            @Valid @RequestBody UpdateGroupPermissionsRequest request) {
+        Authz.requireAdmin();
+        return ApiResponse.ok(adminService.replaceGroupPermissions(groupId, request));
+    }
+
+    @GetMapping("/runtime-configs")
+    public ApiResponse<List<RuntimeConfigResponse>> runtimeConfigs(
+            @RequestParam(name = "groupCode", required = false) String groupCode) {
+        Authz.requireAdmin();
+        return ApiResponse.ok(adminService.loadRuntimeConfigs(groupCode));
+    }
+
+    @PutMapping("/runtime-configs/{groupCode}/{configKey}")
+    public ApiResponse<RuntimeConfigResponse> upsertRuntimeConfig(
+            @PathVariable String groupCode,
+            @PathVariable String configKey,
+            @Valid @RequestBody UpdateRuntimeConfigRequest request) {
+        Authz.requireAdmin();
+        return ApiResponse.ok(adminService.upsertRuntimeConfig(groupCode, configKey, request));
     }
 }

@@ -12,11 +12,14 @@ class PlayAssetApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionControllerProvider);
+    final themeMode = ref.watch(themeModeProvider);
 
     if (session.isBootstrapping) {
       return MaterialApp(
         title: 'PlayAsset',
         theme: AppTheme.lightTheme(),
+        darkTheme: AppTheme.darkTheme(),
+        themeMode: themeMode,
         debugShowCheckedModeBanner: false,
         home: const Scaffold(
           body: Center(
@@ -29,6 +32,8 @@ class PlayAssetApp extends ConsumerWidget {
     return MaterialApp(
       title: 'PlayAsset',
       theme: AppTheme.lightTheme(),
+      darkTheme: AppTheme.darkTheme(),
+      themeMode: themeMode,
       debugShowCheckedModeBanner: false,
       home: session.isAuthenticated ? const HomeShell() : const LoginPage(),
     );

@@ -239,6 +239,126 @@ public class PlatformQueryRepository {
                 """, userId, lowEnabled, mediumEnabled, highEnabled);
     }
 
+    public InvestmentProfileRow loadInvestmentProfile(long userId) {
+        String sql = """
+                SELECT
+                    profile_key,
+                    profile_name,
+                    short_label,
+                    profile_summary,
+                    risk_score,
+                    risk_tier,
+                    target_allocation_hint,
+                    answers_json,
+                    updated_at
+                FROM TM_INVEST_PROFILE_MAIN
+                WHERE user_id = ?
+                LIMIT 1
+                """;
+        List<InvestmentProfileRow> rows = jdbcTemplate.query(sql, (rs, rowNum) -> new InvestmentProfileRow(
+                rs.getString("profile_key"),
+                rs.getString("profile_name"),
+                rs.getString("short_label"),
+                rs.getString("profile_summary"),
+                rs.getInt("risk_score"),
+                rs.getInt("risk_tier"),
+                rs.getString("target_allocation_hint"),
+                rs.getString("answers_json"),
+                Objects.toString(rs.getTimestamp("updated_at"), null)), userId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    public void upsertInvestmentProfile(
+            long userId,
+            String profileKey,
+            String profileName,
+            String shortLabel,
+            String profileSummary,
+            int score,
+            int riskTier,
+            String targetAllocationHint,
+            String answersJson,
+            String updatedBy) {
+        jdbcTemplate.update("""
+                INSERT INTO TM_INVEST_PROFILE_MAIN(
+                    user_id,
+                    profile_key,
+                    profile_name,
+                    short_label,
+                    profile_summary,
+                    risk_score,
+                    risk_tier,
+                    target_allocation_hint,
+                    answers_json,
+                    updated_by,
+                    created_at,
+                    updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+                ON DUPLICATE KEY UPDATE
+                    profile_key = VALUES(profile_key),
+                    profile_name = VALUES(profile_name),
+                    short_label = VALUES(short_label),
+                    profile_summary = VALUES(profile_summary),
+                    risk_score = VALUES(risk_score),
+                    risk_tier = VALUES(risk_tier),
+                    target_allocation_hint = VALUES(target_allocation_hint),
+                    answers_json = VALUES(answers_json),
+                    updated_by = VALUES(updated_by),
+                    updated_at = NOW()
+                """,
+                userId,
+                profileKey,
+                profileName,
+                shortLabel,
+                profileSummary,
+                score,
+                riskTier,
+                targetAllocationHint,
+                answersJson,
+                updatedBy);
+    }
+
+    public void deleteInvestmentProfile(long userId) {
+        jdbcTemplate.update("DELETE FROM TM_INVEST_PROFILE_MAIN WHERE user_id = ?", userId);
+    }
+
+    public PromptTemplateRow loadPromptTemplate(String promptKey) {
+        String sql = """
+                SELECT prompt_key, prompt_version, prompt_template
+                FROM TM_LLM_PROMPT_MAIN
+                WHERE prompt_key = ?
+                  AND use_yn = 1
+                ORDER BY updated_at DESC, prompt_id DESC
+                LIMIT 1
+                """;
+        List<PromptTemplateRow> rows = jdbcTemplate.query(sql, (rs, rowNum) -> new PromptTemplateRow(
+                rs.getString("prompt_key"),
+                rs.getString("prompt_version"),
+                rs.getString("prompt_template")), promptKey);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    public Map<String, String> loadRuntimeConfigMap(String groupCode) {
+        String sql = """
+                SELECT config_key, config_value
+                FROM TM_STD_RUNTIME_CONFIG_MAIN
+                WHERE config_group_cd = ?
+                  AND use_yn = 1
+                ORDER BY sort_no, runtime_config_id
+                """;
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(sql, groupCode);
+        Map<String, String> result = new java.util.LinkedHashMap<>();
+        for (Map<String, Object> row : rows) {
+            String key = Objects.toString(row.get("config_key"), "");
+            String value = Objects.toString(row.get("config_value"), "");
+            if (!key.isBlank()) {
+                result.put(key, value);
+            }
+        }
+        return result;
+    }
+
     public List<MoverSnapshot> loadTopMovers() {
         String sql = """
                 SELECT
@@ -260,7 +380,7 @@ public class PlatformQueryRepository {
                       AND c2.interval_code = '1d'
                   )
                 ORDER BY ABS(change_rate) DESC
-                LIMIT 7
+                LIMIT 4
                 """;
         return jdbcTemplate.query(sql, moverMapper());
     }
@@ -346,6 +466,42 @@ public class PlatformQueryRepository {
                 sharpeRatio,
                 concentrationPct,
                 Timestamp.valueOf(generatedAt));
+    }
+
+    public void insertPromptExecutionLog(
+            String promptKey,
+            String promptVersion,
+            Long userId,
+            boolean cacheHit,
+            Integer tokenInCount,
+            Integer tokenOutCount,
+            Integer elapsedMs,
+            String statusCode,
+            String errorMessage) {
+        jdbcTemplate.update("""
+                INSERT INTO TX_LLM_PROMPT_EXEC_LOG(
+                    prompt_key,
+                    prompt_version,
+                    user_id,
+                    cache_hit_yn,
+                    token_in_cnt,
+                    token_out_cnt,
+                    elapsed_ms,
+                    status_cd,
+                    error_message,
+                    created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                """,
+                promptKey,
+                promptVersion,
+                userId,
+                cacheHit ? 1 : 0,
+                tokenInCount,
+                tokenOutCount,
+                elapsedMs,
+                statusCode,
+                errorMessage);
     }
 
     public List<Long> findUsersWithOpenPositions() {
@@ -851,6 +1007,24 @@ public class PlatformQueryRepository {
             boolean lowEnabled,
             boolean mediumEnabled,
             boolean highEnabled) {
+    }
+
+    public record InvestmentProfileRow(
+            String profileKey,
+            String profileName,
+            String shortLabel,
+            String profileSummary,
+            int riskScore,
+            int riskTier,
+            String targetAllocationHint,
+            String answersJson,
+            String updatedAt) {
+    }
+
+    public record PromptTemplateRow(
+            String promptKey,
+            String promptVersion,
+            String promptTemplate) {
     }
 
     public record EtfCatalogRow(
