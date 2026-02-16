@@ -31,6 +31,7 @@ public class RedisCacheConfig {
         cacheConfigs.put(CacheNames.POSITIONS, baseConfig.entryTtl(Duration.ofSeconds(45)));
         cacheConfigs.put(CacheNames.WATCHLIST, baseConfig.entryTtl(Duration.ofSeconds(90)));
         cacheConfigs.put(CacheNames.ALERTS, baseConfig.entryTtl(Duration.ofSeconds(30)));
+        cacheConfigs.put(CacheNames.ALERT_PREFERENCES, baseConfig.entryTtl(Duration.ofMinutes(3)));
         cacheConfigs.put(CacheNames.PORTFOLIO_ADVICE, baseConfig.entryTtl(Duration.ofMinutes(5)));
         cacheConfigs.put(CacheNames.PORTFOLIO_SIMULATION, baseConfig.entryTtl(Duration.ofMinutes(10)));
 

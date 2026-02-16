@@ -31,7 +31,7 @@ class AdminTab extends ConsumerWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            '유료 호출 정책과 사용자 권한을 실시간으로 제어합니다.',
+            '유료 호출 정책과 사용자 권한을 실시간으로 제어해요.',
             style: TextStyle(fontSize: 13, color: Color(0xFF8A97B3)),
           ),
           const SizedBox(height: 20),
@@ -109,7 +109,7 @@ class _PolicyCardState extends ConsumerState<_PolicyCard> {
     if (value == null || value < 0) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('일일 한도는 0 이상의 정수여야 합니다.')),
+          const SnackBar(content: Text('일일 한도는 0 이상 정수로 입력해 주세요.')),
         );
       }
       return;
@@ -231,7 +231,7 @@ class _UserRoleCardState extends ConsumerState<_UserRoleCard> {
   Future<void> _saveRoles() async {
     if (_roles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('최소 1개 이상의 역할이 필요합니다.')),
+        const SnackBar(content: Text('역할은 최소 1개 이상 선택해 주세요.')),
       );
       return;
     }

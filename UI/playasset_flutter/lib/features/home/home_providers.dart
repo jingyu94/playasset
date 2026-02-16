@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/models/dashboard_models.dart';
 import '../../core/network/api_client.dart';
@@ -7,16 +10,25 @@ class SessionState {
   const SessionState({
     required this.session,
     required this.isLoading,
+    required this.isBootstrapping,
     required this.errorMessage,
   });
+
+  const SessionState.bootstrapping()
+      : session = null,
+        isLoading = false,
+        isBootstrapping = true,
+        errorMessage = null;
 
   const SessionState.signedOut()
       : session = null,
         isLoading = false,
+        isBootstrapping = false,
         errorMessage = null;
 
   final LoginSessionData? session;
   final bool isLoading;
+  final bool isBootstrapping;
   final String? errorMessage;
 
   bool get isAuthenticated => session != null;
@@ -26,19 +38,25 @@ class SessionState {
   SessionState copyWith({
     LoginSessionData? session,
     bool? isLoading,
+    bool? isBootstrapping,
     String? errorMessage,
     bool clearError = false,
   }) {
     return SessionState(
       session: session ?? this.session,
       isLoading: isLoading ?? this.isLoading,
+      isBootstrapping: isBootstrapping ?? this.isBootstrapping,
       errorMessage: clearError ? null : (errorMessage ?? this.errorMessage),
     );
   }
 }
 
 class SessionController extends StateNotifier<SessionState> {
-  SessionController() : super(const SessionState.signedOut());
+  SessionController() : super(const SessionState.bootstrapping()) {
+    _restoreSession();
+  }
+
+  static const _sessionStorageKey = 'playasset.session.v1';
 
   Future<void> login({
     required String loginId,
@@ -48,9 +66,16 @@ class SessionController extends StateNotifier<SessionState> {
     try {
       final api = PlayAssetApiClient();
       final session = await api.login(loginId: loginId, password: password);
-      state = SessionState(session: session, isLoading: false, errorMessage: null);
-    } catch (e) {
-      state = state.copyWith(isLoading: false, errorMessage: '로그인에 실패했습니다. 아이디/비밀번호를 확인하세요.');
+      await _saveSession(session);
+      state = SessionState(
+        session: session,
+        isLoading: false,
+        isBootstrapping: false,
+        errorMessage: null,
+      );
+    } catch (_) {
+      state = state.copyWith(
+          isLoading: false, errorMessage: '로그인에 실패했어요. 아이디/비밀번호를 다시 확인해 주세요.');
     }
   }
 
@@ -63,15 +88,75 @@ class SessionController extends StateNotifier<SessionState> {
         // ignore logout network errors and clear local state
       }
     }
+    await _clearSession();
     state = const SessionState.signedOut();
   }
 
   void clearError() {
     state = state.copyWith(clearError: true);
   }
+
+  Future<void> _restoreSession() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final json = prefs.getString(_sessionStorageKey);
+      if (json == null || json.isEmpty) {
+        state = const SessionState.signedOut();
+        return;
+      }
+
+      final decoded = jsonDecode(json) as Map<String, dynamic>;
+      final saved = LoginSessionData.fromJson(decoded);
+      if (_isExpired(saved.expiresAt)) {
+        await _clearSession();
+        state = const SessionState.signedOut();
+        return;
+      }
+
+      final me =
+          await PlayAssetApiClient(accessToken: saved.accessToken).fetchMe();
+      final restored = LoginSessionData(
+        accessToken: saved.accessToken,
+        tokenType: saved.tokenType,
+        expiresAt: saved.expiresAt,
+        userId: me.userId,
+        loginId: me.loginId,
+        displayName: me.displayName,
+        roles: me.roles,
+      );
+      await _saveSession(restored);
+      state = SessionState(
+        session: restored,
+        isLoading: false,
+        isBootstrapping: false,
+        errorMessage: null,
+      );
+    } catch (_) {
+      await _clearSession();
+      state = const SessionState.signedOut();
+    }
+  }
+
+  bool _isExpired(String rawExpiresAt) {
+    if (rawExpiresAt.isEmpty) return false;
+    final parsed = DateTime.tryParse(rawExpiresAt);
+    if (parsed == null) return false;
+    return parsed.isBefore(DateTime.now().toUtc());
+  }
+
+  Future<void> _saveSession(LoginSessionData session) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_sessionStorageKey, jsonEncode(session.toJson()));
+  }
+
+  Future<void> _clearSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_sessionStorageKey);
+  }
 }
 
-final sessionControllerProvider = StateNotifierProvider<SessionController, SessionState>((ref) {
+final sessionControllerProvider =
+    StateNotifierProvider<SessionController, SessionState>((ref) {
   return SessionController();
 });
 
@@ -83,7 +168,7 @@ final apiClientProvider = Provider<PlayAssetApiClient>((ref) {
 final currentUserIdProvider = Provider<int>((ref) {
   final userId = ref.watch(sessionControllerProvider).userId;
   if (userId == null) {
-    throw StateError('로그인이 필요합니다.');
+    throw StateError('로그인이 필요해요.');
   }
   return userId;
 });
@@ -110,6 +195,13 @@ final alertsProvider = FutureProvider<List<AlertData>>((ref) async {
   final api = ref.watch(apiClientProvider);
   final userId = ref.watch(currentUserIdProvider);
   return api.fetchAlerts(userId);
+});
+
+final alertPreferenceProvider =
+    FutureProvider<AlertPreferenceData>((ref) async {
+  final api = ref.watch(apiClientProvider);
+  final userId = ref.watch(currentUserIdProvider);
+  return api.fetchAlertPreference(userId);
 });
 
 final advisorProvider = FutureProvider<PortfolioAdviceData>((ref) async {
@@ -149,7 +241,9 @@ class PortfolioSimulationQuery {
   int get hashCode => Object.hash(startDateText, endDateText);
 }
 
-final portfolioSimulationProvider = FutureProvider.family<PortfolioSimulationData, PortfolioSimulationQuery>((ref, query) async {
+final portfolioSimulationProvider =
+    FutureProvider.family<PortfolioSimulationData, PortfolioSimulationQuery>(
+        (ref, query) async {
   final api = ref.watch(apiClientProvider);
   final userId = ref.watch(currentUserIdProvider);
   return api.fetchPortfolioSimulation(
@@ -159,7 +253,8 @@ final portfolioSimulationProvider = FutureProvider.family<PortfolioSimulationDat
   );
 });
 
-final paidServicePoliciesProvider = FutureProvider<List<PaidServicePolicyData>>((ref) async {
+final paidServicePoliciesProvider =
+    FutureProvider<List<PaidServicePolicyData>>((ref) async {
   final api = ref.watch(apiClientProvider);
   return api.fetchPaidServicePolicies();
 });

@@ -28,7 +28,7 @@ class SettingsTab extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 8),
-        const Text('외부 API 키는 비워둔 상태입니다. 배포 환경에서만 시크릿으로 주입하세요.', style: TextStyle(color: Color(0xFF91A0BC))),
+        const Text('외부 API 키는 비워뒀어요. 배포 환경에서만 시크릿으로 넣어 주세요.', style: TextStyle(color: Color(0xFF91A0BC))),
         const SizedBox(height: 16),
         if (session != null) ...[
           _KeyCard(title: '로그인 사용자', value: '${session.displayName} (${session.loginId})', hint: '권한: ${session.roles.join(', ')}'),

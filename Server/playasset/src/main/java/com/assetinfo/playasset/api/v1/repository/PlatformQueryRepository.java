@@ -75,9 +75,15 @@ public class PlatformQueryRepository {
 
         int unreadAlertCount = jdbcTemplate.queryForObject("""
                 SELECT COUNT(*)
-                FROM alert_events
-                WHERE user_id = ?
-                  AND status IN ('PENDING', 'SENT')
+                FROM alert_events ae
+                LEFT JOIN user_preferences up ON up.user_id = ae.user_id
+                WHERE ae.user_id = ?
+                  AND ae.status IN ('PENDING', 'SENT')
+                  AND (
+                      (ae.severity = 'LOW' AND COALESCE(up.alert_level_low_enabled, 1) = 1)
+                      OR (ae.severity = 'MEDIUM' AND COALESCE(up.alert_level_medium_enabled, 1) = 1)
+                      OR (ae.severity = 'HIGH' AND COALESCE(up.alert_level_high_enabled, 1) = 1)
+                  )
                 """, Integer.class, userId);
 
         SentimentSnapshot sentiment = loadSentimentSnapshot();
@@ -169,9 +175,15 @@ public class PlatformQueryRepository {
     public List<AlertResponse> loadRecentAlerts(long userId, int limit) {
         String sql = """
                 SELECT alert_event_id, event_type, title, message, severity, status, occurred_at
-                FROM alert_events
-                WHERE user_id = ?
-                ORDER BY occurred_at DESC
+                FROM alert_events ae
+                LEFT JOIN user_preferences up ON up.user_id = ae.user_id
+                WHERE ae.user_id = ?
+                  AND (
+                      (ae.severity = 'LOW' AND COALESCE(up.alert_level_low_enabled, 1) = 1)
+                      OR (ae.severity = 'MEDIUM' AND COALESCE(up.alert_level_medium_enabled, 1) = 1)
+                      OR (ae.severity = 'HIGH' AND COALESCE(up.alert_level_high_enabled, 1) = 1)
+                  )
+                ORDER BY ae.occurred_at DESC
                 LIMIT ?
                 """;
         return jdbcTemplate.query(sql, (rs, rowNum) -> new AlertResponse(
@@ -182,6 +194,49 @@ public class PlatformQueryRepository {
                 rs.getString("severity"),
                 rs.getString("status"),
                 Objects.toString(rs.getTimestamp("occurred_at"), null)), userId, limit);
+    }
+
+    public AlertPreferenceRow loadAlertPreference(long userId) {
+        String sql = """
+                SELECT
+                    COALESCE(alert_level_low_enabled, 1) AS low_enabled,
+                    COALESCE(alert_level_medium_enabled, 1) AS medium_enabled,
+                    COALESCE(alert_level_high_enabled, 1) AS high_enabled
+                FROM user_preferences
+                WHERE user_id = ?
+                LIMIT 1
+                """;
+        List<AlertPreferenceRow> rows = jdbcTemplate.query(sql, (rs, rowNum) -> new AlertPreferenceRow(
+                rs.getBoolean("low_enabled"),
+                rs.getBoolean("medium_enabled"),
+                rs.getBoolean("high_enabled")), userId);
+        if (rows.isEmpty()) {
+            return new AlertPreferenceRow(true, true, true);
+        }
+        return rows.get(0);
+    }
+
+    public void upsertAlertPreference(long userId, boolean lowEnabled, boolean mediumEnabled, boolean highEnabled) {
+        jdbcTemplate.update("""
+                INSERT INTO user_preferences(
+                    user_id,
+                    timezone,
+                    locale,
+                    push_enabled,
+                    email_enabled,
+                    alert_level_low_enabled,
+                    alert_level_medium_enabled,
+                    alert_level_high_enabled,
+                    created_at,
+                    updated_at
+                )
+                VALUES (?, 'Asia/Seoul', 'ko-KR', 1, 0, ?, ?, ?, NOW(), NOW())
+                ON DUPLICATE KEY UPDATE
+                    alert_level_low_enabled = VALUES(alert_level_low_enabled),
+                    alert_level_medium_enabled = VALUES(alert_level_medium_enabled),
+                    alert_level_high_enabled = VALUES(alert_level_high_enabled),
+                    updated_at = NOW()
+                """, userId, lowEnabled, mediumEnabled, highEnabled);
     }
 
     public List<MoverSnapshot> loadTopMovers() {
@@ -205,7 +260,7 @@ public class PlatformQueryRepository {
                       AND c2.interval_code = '1d'
                   )
                 ORDER BY ABS(change_rate) DESC
-                LIMIT 6
+                LIMIT 7
                 """;
         return jdbcTemplate.query(sql, moverMapper());
     }
@@ -790,6 +845,12 @@ public class PlatformQueryRepository {
     public record DailyPortfolioValuePoint(
             LocalDate priceDate,
             BigDecimal portfolioValue) {
+    }
+
+    public record AlertPreferenceRow(
+            boolean lowEnabled,
+            boolean mediumEnabled,
+            boolean highEnabled) {
     }
 
     public record EtfCatalogRow(

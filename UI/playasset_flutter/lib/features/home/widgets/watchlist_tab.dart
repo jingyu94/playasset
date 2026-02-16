@@ -45,7 +45,7 @@ class _WatchlistTabState extends ConsumerState<WatchlistTab> {
             ],
           ),
           const SizedBox(height: 6),
-          const Text('중요 자산의 흐름을 빠르게 추적하세요.', style: TextStyle(color: Color(0xFF91A0BC))),
+          const Text('중요 자산 흐름, 빠르게 볼 수 있어요.', style: TextStyle(color: Color(0xFF91A0BC))),
           const SizedBox(height: 14),
           TextField(
             controller: _searchController,

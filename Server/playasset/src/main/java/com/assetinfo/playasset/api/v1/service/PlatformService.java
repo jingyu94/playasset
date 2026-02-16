@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.assetinfo.playasset.api.v1.dto.AdviceMetricsSnapshot;
+import com.assetinfo.playasset.api.v1.dto.AlertPreferenceResponse;
 import com.assetinfo.playasset.api.v1.dto.AlertResponse;
 import com.assetinfo.playasset.api.v1.dto.AiInsightSnapshot;
 import com.assetinfo.playasset.api.v1.dto.CreateTransactionRequest;
@@ -29,6 +30,7 @@ import com.assetinfo.playasset.api.v1.dto.PositionSnapshot;
 import com.assetinfo.playasset.api.v1.dto.RebalancingActionSnapshot;
 import com.assetinfo.playasset.api.v1.dto.SimulationContributionSnapshot;
 import com.assetinfo.playasset.api.v1.dto.SimulationPointSnapshot;
+import com.assetinfo.playasset.api.v1.dto.UpdateAlertPreferenceRequest;
 import com.assetinfo.playasset.api.v1.dto.WatchlistItemResponse;
 import com.assetinfo.playasset.api.v1.repository.PlatformQueryRepository;
 import com.assetinfo.playasset.api.v1.repository.PlatformQueryRepository.DailyPortfolioValuePoint;
@@ -66,6 +68,33 @@ public class PlatformService {
     @Cacheable(cacheNames = CacheNames.ALERTS, key = "#userId + ':' + #limit")
     public List<AlertResponse> getAlerts(long userId, int limit) {
         return repository.loadRecentAlerts(userId, limit);
+    }
+
+    @Cacheable(cacheNames = CacheNames.ALERT_PREFERENCES, key = "#userId")
+    public AlertPreferenceResponse getAlertPreference(long userId) {
+        var row = repository.loadAlertPreference(userId);
+        return new AlertPreferenceResponse(
+                userId,
+                row.lowEnabled(),
+                row.mediumEnabled(),
+                row.highEnabled());
+    }
+
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CacheNames.ALERT_PREFERENCES, key = "#userId"),
+            @CacheEvict(cacheNames = CacheNames.ALERTS, allEntries = true),
+            @CacheEvict(cacheNames = CacheNames.DASHBOARD, key = "#userId")
+    })
+    @Transactional
+    public AlertPreferenceResponse updateAlertPreference(long userId, UpdateAlertPreferenceRequest request) {
+        boolean lowEnabled = request.lowEnabled();
+        boolean mediumEnabled = request.mediumEnabled();
+        boolean highEnabled = request.highEnabled();
+        if (!lowEnabled && !mediumEnabled && !highEnabled) {
+            throw new IllegalArgumentException("최소 1개 이상의 알림 레벨을 활성화해야 합니다.");
+        }
+        repository.upsertAlertPreference(userId, lowEnabled, mediumEnabled, highEnabled);
+        return getAlertPreference(userId);
     }
 
     @Cacheable(cacheNames = CacheNames.PORTFOLIO_ADVICE, key = "#userId")
@@ -475,61 +504,109 @@ public class PlatformService {
             AnalyticsMetrics metrics,
             List<RebalancingActionSnapshot> actions,
             List<EtfRecommendationSnapshot> etfRecommendations) {
-        String headline = metrics.riskLevel().contains("높음")
-                ? "집중 리스크 완화가 최우선입니다"
-                : metrics.riskLevel().contains("보통")
-                        ? "완만한 리밸런싱으로 안정 구간 진입이 가능합니다"
-                        : "성장 노출을 늘릴 수 있는 안정 구간입니다";
+        boolean stable = isStablePortfolio(metrics, actions);
+        String headline = stable
+                ? "현재 포트폴리오는 안정 구간에 가깝습니다"
+                : "리밸런싱/분산 조정이 필요한 구간입니다";
 
-        String summary = String.format(
-                Locale.KOREA,
-                "샤프 %.2f, 변동성 %.2f%%, 최대낙폭 %.2f%%, 최대보유비중 %.2f%% 기준으로 분석했습니다.",
-                metrics.sharpeRatio().doubleValue(),
-                metrics.annualVolatilityPct().doubleValue(),
-                metrics.maxDrawdownPct().doubleValue(),
-                metrics.concentrationPct().doubleValue());
+        String summary = stable
+                ? String.format(
+                        Locale.KOREA,
+                        "샤프 %.2f, 변동성 %.2f%%, 최대낙폭 %.2f%%, 최대비중 %.2f%% 기준으로 급격한 구조 변경보다 운영 전략 중심이 유리합니다.",
+                        metrics.sharpeRatio().doubleValue(),
+                        metrics.annualVolatilityPct().doubleValue(),
+                        metrics.maxDrawdownPct().doubleValue(),
+                        metrics.concentrationPct().doubleValue())
+                : String.format(
+                        Locale.KOREA,
+                        "샤프 %.2f, 변동성 %.2f%%, 최대낙폭 %.2f%%, 최대비중 %.2f%% 기준으로 비중 조정 우선순위가 존재합니다.",
+                        metrics.sharpeRatio().doubleValue(),
+                        metrics.annualVolatilityPct().doubleValue(),
+                        metrics.maxDrawdownPct().doubleValue(),
+                        metrics.concentrationPct().doubleValue());
 
         List<String> keyPoints = new ArrayList<>();
-        if (!actions.isEmpty()) {
-            RebalancingActionSnapshot topAction = actions.get(0);
-            keyPoints.add(String.format(
-                    Locale.KOREA,
-                    "우선 조치: %s %s (권장 금액 약 %,d원)",
-                    topAction.assetName(),
-                    "BUY".equals(topAction.action()) ? "비중 확대" : "비중 축소",
-                    topAction.suggestedAmount().longValue()));
-        }
-        if (!etfRecommendations.isEmpty()) {
-            EtfRecommendationSnapshot topEtf = etfRecommendations.get(0);
-            keyPoints.add(String.format(
-                    Locale.KOREA,
-                    "ETF 대안: %s %s (적합도 %d점, 권장 %.1f%%)",
-                    topEtf.symbol(),
-                    topEtf.name(),
-                    topEtf.matchScore(),
-                    topEtf.suggestedWeightPct().doubleValue()));
-        }
-        if (metrics.diversificationScore().doubleValue() < 55) {
-            keyPoints.add("분산 점수가 낮아 업종/지역 분산 비중을 먼저 확대해야 합니다.");
+        if (stable) {
+            keyPoints.add("즉시 구조 변경 필요성이 낮아 과도한 매매보다 전략 유지가 합리적입니다.");
+            keyPoints.addAll(buildStableStrategy(metrics, etfRecommendations));
         } else {
-            keyPoints.add("분산 상태는 양호하므로 목표 수익률 기반의 미세조정이 유효합니다.");
+            if (!actions.isEmpty()) {
+                RebalancingActionSnapshot topAction = actions.get(0);
+                keyPoints.add(String.format(
+                        Locale.KOREA,
+                        "우선 조정: %s %s (권장 금액 약 %,d원)",
+                        topAction.assetName(),
+                        "BUY".equals(topAction.action()) ? "비중 확대" : "비중 축소",
+                        topAction.suggestedAmount().longValue()));
+            } else {
+                keyPoints.add("즉시 체결할 단일 조정안은 없지만 단계적 리밸런싱 검토가 필요합니다.");
+            }
+
+            if (!etfRecommendations.isEmpty()) {
+                EtfRecommendationSnapshot topEtf = etfRecommendations.get(0);
+                keyPoints.add(String.format(
+                        Locale.KOREA,
+                        "ETF 대안: %s %s (적합도 %d점, 권장 %.1f%%)",
+                        topEtf.symbol(),
+                        topEtf.name(),
+                        topEtf.matchScore(),
+                        topEtf.suggestedWeightPct().doubleValue()));
+            }
+
+            if (metrics.diversificationScore().doubleValue() < 55) {
+                keyPoints.add("분산 점수가 낮아 섹터/시장 분산 비중을 추가하는 것이 유효합니다.");
+            } else {
+                keyPoints.add("분산은 유지되고 있으므로 비중 조정은 분할 체결로 완만하게 진행하는 편이 좋습니다.");
+            }
         }
 
         List<String> cautions = new ArrayList<>();
-        cautions.add("본 추천은 규칙 기반 보조지표이며, 투자판단과 손익 책임은 사용자에게 있습니다.");
-        if (metrics.maxDrawdownPct().doubleValue() >= 12) {
-            cautions.add("최근 최대 낙폭이 커 손절/현금비중 기준을 사전에 확정해 두는 것이 좋습니다.");
+        cautions.add("본 진단은 규칙 기반 보조지표이며 최종 투자 판단 책임은 사용자에게 있습니다.");
+        if (stable) {
+            cautions.add("운영 임계치 권장: 변동성 20%↑, 최대낙폭 12%↑, 최대비중 40%↑ 시 재진단 권장.");
+        } else if (metrics.maxDrawdownPct().doubleValue() >= 12) {
+            cautions.add("최근 최대 낙폭이 커 손절/현금비중 기준을 사전에 고정하는 것이 안전합니다.");
         } else {
-            cautions.add("낙폭은 관리 가능한 수준이지만 단기 변동 구간 재진입 가능성을 고려해야 합니다.");
+            cautions.add("변동성 확대 가능성을 고려해 단일일 대량 체결보다 분할 리밸런싱이 유리합니다.");
         }
 
         return new AiInsightSnapshot(
                 headline,
                 summary,
-                keyPoints,
+                keyPoints.stream().limit(4).toList(),
                 cautions,
                 LocalDateTime.now().toString(),
-                "advisor-rule-v1");
+                "advisor-rule-v2");
+    }
+
+    private boolean isStablePortfolio(AnalyticsMetrics metrics, List<RebalancingActionSnapshot> actions) {
+        boolean riskBandStable = metrics.annualVolatilityPct().doubleValue() < 18.0
+                && metrics.maxDrawdownPct().doubleValue() < 10.0
+                && metrics.concentrationPct().doubleValue() < 35.0;
+        boolean diversificationStable = metrics.diversificationScore().doubleValue() >= 60.0;
+        boolean rebalancePressureLow = actions.isEmpty()
+                || actions.stream().allMatch(action -> action.gapPct().abs().doubleValue() < 4.0);
+        return riskBandStable && diversificationStable && rebalancePressureLow;
+    }
+
+    private List<String> buildStableStrategy(
+            AnalyticsMetrics metrics,
+            List<EtfRecommendationSnapshot> etfRecommendations) {
+        List<String> strategies = new ArrayList<>();
+        strategies.add("운영전략: 월 1회 점검 + 허용 오차(예: ±3%) 이탈 시에만 리밸런싱 트리거");
+        strategies.add(String.format(
+                Locale.KOREA,
+                "운영전략: 분산 점수 %.1f점을 유지 목표로 신규 자금만 우선 배분",
+                metrics.diversificationScore().doubleValue()));
+        if (!etfRecommendations.isEmpty()) {
+            EtfRecommendationSnapshot topEtf = etfRecommendations.get(0);
+            strategies.add(String.format(
+                    Locale.KOREA,
+                    "운영전략: %s(%s)는 즉시 교체가 아니라 신규 매수분에서 점진 편입",
+                    topEtf.name(),
+                    topEtf.symbol()));
+        }
+        return strategies;
     }
 
     private BigDecimal annualizedReturn(BigDecimal startValue, BigDecimal endValue, long days) {

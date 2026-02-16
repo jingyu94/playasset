@@ -74,6 +74,28 @@ class PlayAssetApiClient {
     return payload.map(AlertData.fromJson).toList();
   }
 
+  Future<AlertPreferenceData> fetchAlertPreference(int userId) async {
+    final response = await _dio.get<Map<String, dynamic>>('/v1/users/$userId/alerts/preferences');
+    return AlertPreferenceData.fromJson(_extractData(response.data));
+  }
+
+  Future<AlertPreferenceData> updateAlertPreference(
+    int userId, {
+    required bool lowEnabled,
+    required bool mediumEnabled,
+    required bool highEnabled,
+  }) async {
+    final response = await _dio.put<Map<String, dynamic>>(
+      '/v1/users/$userId/alerts/preferences',
+      data: {
+        'lowEnabled': lowEnabled,
+        'mediumEnabled': mediumEnabled,
+        'highEnabled': highEnabled,
+      },
+    );
+    return AlertPreferenceData.fromJson(_extractData(response.data));
+  }
+
   Future<PortfolioAdviceData> fetchPortfolioAdvice(int userId) async {
     final response = await _dio.get<Map<String, dynamic>>('/v1/users/$userId/portfolio/advice');
     return PortfolioAdviceData.fromJson(_extractData(response.data));

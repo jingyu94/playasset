@@ -70,7 +70,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        '운영 권한, 유료 호출 정책, 역할 관리를 안전하게 제어합니다.',
+                        '운영 권한, 유료 호출 정책, 역할 관리를 안전하게 제어해요.',
                         style: TextStyle(color: Color(0xFFB8C9F1), fontSize: 13),
                       ),
                       const SizedBox(height: 24),
@@ -80,7 +80,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         decoration: _fieldDecoration('아이디', Icons.person_outline),
                         validator: (value) {
                           if (value == null || value.trim().isEmpty) {
-                            return '아이디를 입력하세요.';
+                            return '아이디를 입력해 주세요.';
                           }
                           return null;
                         },
@@ -101,7 +101,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         ),
                         validator: (value) {
                           if (value == null || value.isEmpty) {
-                            return '비밀번호를 입력하세요.';
+                            return '비밀번호를 입력해 주세요.';
                           }
                           return null;
                         },

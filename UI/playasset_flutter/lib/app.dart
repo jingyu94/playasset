@@ -13,6 +13,19 @@ class PlayAssetApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionControllerProvider);
 
+    if (session.isBootstrapping) {
+      return MaterialApp(
+        title: 'PlayAsset',
+        theme: AppTheme.lightTheme(),
+        debugShowCheckedModeBanner: false,
+        home: const Scaffold(
+          body: Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+
     return MaterialApp(
       title: 'PlayAsset',
       theme: AppTheme.lightTheme(),

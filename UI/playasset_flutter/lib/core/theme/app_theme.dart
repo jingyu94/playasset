@@ -24,11 +24,43 @@ class AppTheme {
       fontFamily: 'NotoSansKR',
     );
 
+    final readableTextTheme = base.textTheme
+        .apply(
+          bodyColor: const Color(0xFFF3F6FF),
+          displayColor: const Color(0xFFF3F6FF),
+        )
+        .copyWith(
+          bodyLarge: base.textTheme.bodyLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.1,
+            height: 1.35,
+          ),
+          bodyMedium: base.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.1,
+            height: 1.35,
+          ),
+          bodySmall: base.textTheme.bodySmall?.copyWith(
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.1,
+            height: 1.3,
+          ),
+          labelLarge: base.textTheme.labelLarge?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.1,
+          ),
+          labelMedium: base.textTheme.labelMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.1,
+          ),
+          titleMedium: base.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.1,
+          ),
+        );
+
     return base.copyWith(
-      textTheme: base.textTheme.apply(
-        bodyColor: const Color(0xFFF3F6FF),
-        displayColor: const Color(0xFFF3F6FF),
-      ),
+      textTheme: readableTextTheme,
       cardTheme: CardThemeData(
         color: const Color(0xFF111A2B),
         elevation: 0,

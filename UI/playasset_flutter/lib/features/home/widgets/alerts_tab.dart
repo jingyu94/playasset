@@ -1,19 +1,81 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/dashboard_models.dart';
 import 'complementary_accent.dart';
 import '../home_providers.dart';
 
-class AlertsTab extends ConsumerWidget {
+class AlertsTab extends ConsumerStatefulWidget {
   const AlertsTab({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final asyncData = ref.watch(alertsProvider);
+  ConsumerState<AlertsTab> createState() => _AlertsTabState();
+}
+
+class _AlertsTabState extends ConsumerState<AlertsTab> {
+  bool _savingPreference = false;
+  String? _preferenceError;
+
+  Future<void> _updatePreference(
+    AlertPreferenceData current, {
+    bool? lowEnabled,
+    bool? mediumEnabled,
+    bool? highEnabled,
+  }) async {
+    final next = current.copyWith(
+      lowEnabled: lowEnabled,
+      mediumEnabled: mediumEnabled,
+      highEnabled: highEnabled,
+    );
+
+    if (!next.lowEnabled && !next.mediumEnabled && !next.highEnabled) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('레벨은 최소 1개 이상 켜 주세요.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _savingPreference = true;
+      _preferenceError = null;
+    });
+
+    try {
+      final api = ref.read(apiClientProvider);
+      final userId = ref.read(currentUserIdProvider);
+      await api.updateAlertPreference(
+        userId,
+        lowEnabled: next.lowEnabled,
+        mediumEnabled: next.mediumEnabled,
+        highEnabled: next.highEnabled,
+      );
+      ref.invalidate(alertPreferenceProvider);
+      ref.invalidate(alertsProvider);
+      ref.invalidate(dashboardProvider);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _preferenceError = '알림 레벨 저장에 실패했습니다: $e';
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _savingPreference = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final alertsAsync = ref.watch(alertsProvider);
+    final preferenceAsync = ref.watch(alertPreferenceProvider);
 
     return RefreshIndicator(
-      onRefresh: () async => ref.invalidate(alertsProvider),
+      onRefresh: () async {
+        ref.invalidate(alertsProvider);
+        ref.invalidate(alertPreferenceProvider);
+        ref.invalidate(dashboardProvider);
+      },
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
@@ -21,7 +83,10 @@ class AlertsTab extends ConsumerWidget {
           Row(
             children: [
               Expanded(
-                child: Text('알림 센터', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+                child: Text(
+                  '알림 센터',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+                ),
               ),
               const ComplementaryAccent(
                 icon: Icons.notifications_active_rounded,
@@ -31,9 +96,32 @@ class AlertsTab extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
-          const Text('우선순위 높은 이벤트부터 확인하세요.', style: TextStyle(color: Color(0xFF91A0BC))),
+          const Text('우선순위 높은 이벤트부터 보면 돼요.', style: TextStyle(color: Color(0xFF91A0BC))),
           const SizedBox(height: 16),
-          asyncData.when(
+          preferenceAsync.when(
+            data: (pref) => _AlertPreferenceCard(
+              preference: pref,
+              saving: _savingPreference,
+              errorText: _preferenceError,
+              onToggleLow: () => _updatePreference(pref, lowEnabled: !pref.lowEnabled),
+              onToggleMedium: () => _updatePreference(pref, mediumEnabled: !pref.mediumEnabled),
+              onToggleHigh: () => _updatePreference(pref, highEnabled: !pref.highEnabled),
+            ),
+            loading: () => const Card(
+              child: Padding(
+                padding: EdgeInsets.all(14),
+                child: SizedBox(height: 70, child: Center(child: CircularProgressIndicator())),
+              ),
+            ),
+            error: (error, _) => Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text('알림 레벨 설정을 불러오지 못했습니다: $error'),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          alertsAsync.when(
             data: (alerts) => _buildAlertList(alerts),
             loading: () => const SizedBox(height: 260, child: Center(child: CircularProgressIndicator())),
             error: (error, _) => Card(child: Padding(padding: const EdgeInsets.all(16), child: Text('오류: $error'))),
@@ -84,18 +172,32 @@ class AlertsTab extends ConsumerWidget {
                       children: [
                         Row(
                           children: [
-                            Expanded(child: Text(alert.title, style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFF3F6FF)))),
+                            Expanded(
+                              child: Text(
+                                alert.title,
+                                style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFF3F6FF)),
+                              ),
+                            ),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(borderRadius: BorderRadius.circular(100), color: severityColor.withOpacity(0.2)),
-                              child: Text(alert.severity, style: TextStyle(color: severityColor, fontWeight: FontWeight.w900, fontSize: 11)),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(100),
+                                color: severityColor.withOpacity(0.2),
+                              ),
+                              child: Text(
+                                alert.severity,
+                                style: TextStyle(color: severityColor, fontWeight: FontWeight.w900, fontSize: 11),
+                              ),
                             ),
                           ],
                         ),
                         const SizedBox(height: 6),
                         Text(alert.message, style: const TextStyle(height: 1.35, color: Color(0xFFD3DCF0))),
                         const SizedBox(height: 8),
-                        Text('${alert.eventType} · ${alert.status} · ${alert.occurredAt}', style: const TextStyle(color: Color(0xFF91A0BC), fontSize: 12)),
+                        Text(
+                          '${alert.eventType} · ${alert.status} · ${alert.occurredAt}',
+                          style: const TextStyle(color: Color(0xFF91A0BC), fontSize: 12),
+                        ),
                       ],
                     ),
                   ),
@@ -105,6 +207,105 @@ class AlertsTab extends ConsumerWidget {
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+class _AlertPreferenceCard extends StatelessWidget {
+  const _AlertPreferenceCard({
+    required this.preference,
+    required this.saving,
+    required this.errorText,
+    required this.onToggleLow,
+    required this.onToggleMedium,
+    required this.onToggleHigh,
+  });
+
+  final AlertPreferenceData preference;
+  final bool saving;
+  final String? errorText;
+  final VoidCallback onToggleLow;
+  final VoidCallback onToggleMedium;
+  final VoidCallback onToggleHigh;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabledCount = [
+      preference.lowEnabled,
+      preference.mediumEnabled,
+      preference.highEnabled,
+    ].where((e) => e).length;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Expanded(
+                  child: Text('수신 레벨 설정', style: TextStyle(fontWeight: FontWeight.w900, color: Color(0xFFF3F6FF))),
+                ),
+                if (saving) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text('현재 $enabledCount개 레벨 수신 중', style: const TextStyle(color: Color(0xFF91A0BC), fontSize: 12)),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _levelChip(
+                  label: 'HIGH',
+                  enabled: preference.highEnabled,
+                  color: const Color(0xFFFF6B81),
+                  onTap: saving ? null : onToggleHigh,
+                ),
+                _levelChip(
+                  label: 'MEDIUM',
+                  enabled: preference.mediumEnabled,
+                  color: const Color(0xFFFFB468),
+                  onTap: saving ? null : onToggleMedium,
+                ),
+                _levelChip(
+                  label: 'LOW',
+                  enabled: preference.lowEnabled,
+                  color: const Color(0xFF8EA1C2),
+                  onTap: saving ? null : onToggleLow,
+                ),
+              ],
+            ),
+            if (errorText != null) ...[
+              const SizedBox(height: 8),
+              Text(errorText!, style: const TextStyle(color: Color(0xFFFF7B87), fontSize: 12)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _levelChip({
+    required String label,
+    required bool enabled,
+    required Color color,
+    required VoidCallback? onTap,
+  }) {
+    return FilterChip(
+      label: Text(label),
+      selected: enabled,
+      onSelected: onTap == null ? null : (_) => onTap(),
+      selectedColor: color.withOpacity(0.24),
+      checkmarkColor: color,
+      labelStyle: TextStyle(
+        color: enabled ? color : const Color(0xFFD3DCF0),
+        fontWeight: FontWeight.w800,
+      ),
+      side: BorderSide(color: enabled ? color.withOpacity(0.7) : const Color(0xFF2A3E63)),
+      backgroundColor: const Color(0xFF12213A),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
     );
   }
 }

@@ -24,3 +24,15 @@
 - `EXTERNAL_NEWS_API_KEY` (기본값 빈 문자열)
 
 외부 API 키는 코드에 넣지 말고 CI/CD 시크릿 또는 배포 환경 변수로 주입하세요.
+
+## 버전 APK 빌드
+루트 경로에서 버전/빌드번호를 지정해 APK를 생성할 수 있습니다.
+
+- 기본(0.01+1):
+  - `powershell -ExecutionPolicy Bypass -File scripts/build-apk-versioned.ps1`
+- 예시(0.02+2):
+  - `powershell -ExecutionPolicy Bypass -File scripts/build-apk-versioned.ps1 -BuildName 0.02 -BuildNumber 2`
+
+생성 파일
+- 기본 출력: `UI/playasset_flutter/build/app/outputs/flutter-apk/app-release.apk`
+- 버전 라벨 출력: `UI/playasset_flutter/build/app/outputs/flutter-apk/app-release-v<버전>+<빌드번호>.apk`

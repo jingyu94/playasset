@@ -6,11 +6,13 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.assetinfo.playasset.api.v1.dto.AlertPreferenceResponse;
 import com.assetinfo.playasset.api.v1.dto.AlertResponse;
 import com.assetinfo.playasset.api.v1.dto.ApiResponse;
 import com.assetinfo.playasset.api.v1.dto.CreateTransactionRequest;
@@ -19,6 +21,7 @@ import com.assetinfo.playasset.api.v1.dto.DashboardResponse;
 import com.assetinfo.playasset.api.v1.dto.PortfolioAdviceResponse;
 import com.assetinfo.playasset.api.v1.dto.PortfolioSimulationResponse;
 import com.assetinfo.playasset.api.v1.dto.PositionSnapshot;
+import com.assetinfo.playasset.api.v1.dto.UpdateAlertPreferenceRequest;
 import com.assetinfo.playasset.api.v1.dto.WatchlistItemResponse;
 import com.assetinfo.playasset.api.v1.auth.Authz;
 import com.assetinfo.playasset.api.v1.quota.PaidServiceKeys;
@@ -85,6 +88,21 @@ public class PlatformController {
         Authz.requireUserOrAdmin(userId);
         quotaService.consume(PaidServiceKeys.ALERTS_READ);
         return ApiResponse.ok(platformService.getAlerts(userId, limit));
+    }
+
+    @GetMapping("/alerts/preferences")
+    public ApiResponse<AlertPreferenceResponse> alertPreference(@PathVariable long userId) {
+        Authz.requireUserOrAdmin(userId);
+        quotaService.consume(PaidServiceKeys.ALERTS_READ);
+        return ApiResponse.ok(platformService.getAlertPreference(userId));
+    }
+
+    @PutMapping("/alerts/preferences")
+    public ApiResponse<AlertPreferenceResponse> updateAlertPreference(
+            @PathVariable long userId,
+            @Valid @RequestBody UpdateAlertPreferenceRequest request) {
+        Authz.requireUserOrAdmin(userId);
+        return ApiResponse.ok(platformService.updateAlertPreference(userId, request));
     }
 
     @PostMapping("/portfolio/transactions")

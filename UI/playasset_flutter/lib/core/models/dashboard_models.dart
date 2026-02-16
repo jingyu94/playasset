@@ -29,7 +29,8 @@ class DashboardData {
       dailyPnlRate: (json['dailyPnlRate'] as num).toDouble(),
       watchlistCount: json['watchlistCount'] as int,
       unreadAlertCount: json['unreadAlertCount'] as int,
-      sentiment: SentimentData.fromJson(json['sentiment'] as Map<String, dynamic>),
+      sentiment:
+          SentimentData.fromJson(json['sentiment'] as Map<String, dynamic>),
       topPositions: (json['topPositions'] as List<dynamic>)
           .map((e) => PositionData.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -184,6 +185,42 @@ class AlertData {
   }
 }
 
+class AlertPreferenceData {
+  AlertPreferenceData({
+    required this.userId,
+    required this.lowEnabled,
+    required this.mediumEnabled,
+    required this.highEnabled,
+  });
+
+  final int userId;
+  final bool lowEnabled;
+  final bool mediumEnabled;
+  final bool highEnabled;
+
+  factory AlertPreferenceData.fromJson(Map<String, dynamic> json) {
+    return AlertPreferenceData(
+      userId: json['userId'] as int,
+      lowEnabled: json['lowEnabled'] as bool,
+      mediumEnabled: json['mediumEnabled'] as bool,
+      highEnabled: json['highEnabled'] as bool,
+    );
+  }
+
+  AlertPreferenceData copyWith({
+    bool? lowEnabled,
+    bool? mediumEnabled,
+    bool? highEnabled,
+  }) {
+    return AlertPreferenceData(
+      userId: userId,
+      lowEnabled: lowEnabled ?? this.lowEnabled,
+      mediumEnabled: mediumEnabled ?? this.mediumEnabled,
+      highEnabled: highEnabled ?? this.highEnabled,
+    );
+  }
+}
+
 class PortfolioAdviceData {
   PortfolioAdviceData({
     required this.metrics,
@@ -199,7 +236,8 @@ class PortfolioAdviceData {
 
   factory PortfolioAdviceData.fromJson(Map<String, dynamic> json) {
     return PortfolioAdviceData(
-      metrics: AdviceMetricsData.fromJson(json['metrics'] as Map<String, dynamic>),
+      metrics:
+          AdviceMetricsData.fromJson(json['metrics'] as Map<String, dynamic>),
       rebalancingActions: (json['rebalancingActions'] as List<dynamic>)
           .map((e) => RebalancingActionData.fromJson(e as Map<String, dynamic>))
           .toList(),
@@ -241,7 +279,8 @@ class AdviceMetricsData {
       userId: json['userId'] as int,
       asOfDate: json['asOfDate'] as String,
       totalValue: (json['totalValue'] as num).toDouble(),
-      expectedAnnualReturnPct: (json['expectedAnnualReturnPct'] as num).toDouble(),
+      expectedAnnualReturnPct:
+          (json['expectedAnnualReturnPct'] as num).toDouble(),
       annualVolatilityPct: (json['annualVolatilityPct'] as num).toDouble(),
       sharpeRatio: (json['sharpeRatio'] as num).toDouble(),
       maxDrawdownPct: (json['maxDrawdownPct'] as num).toDouble(),
@@ -355,8 +394,10 @@ class AiInsightData {
     return AiInsightData(
       headline: json['headline'] as String,
       summary: json['summary'] as String,
-      keyPoints: (json['keyPoints'] as List<dynamic>).map((e) => e as String).toList(),
-      cautions: (json['cautions'] as List<dynamic>).map((e) => e as String).toList(),
+      keyPoints:
+          (json['keyPoints'] as List<dynamic>).map((e) => e as String).toList(),
+      cautions:
+          (json['cautions'] as List<dynamic>).map((e) => e as String).toList(),
       generatedAt: json['generatedAt'] as String,
       model: json['model'] as String,
     );
@@ -410,7 +451,8 @@ class PortfolioSimulationData {
           .map((e) => SimulationPointData.fromJson(e as Map<String, dynamic>))
           .toList(),
       contributions: (json['contributions'] as List<dynamic>)
-          .map((e) => SimulationContributionData.fromJson(e as Map<String, dynamic>))
+          .map((e) =>
+              SimulationContributionData.fromJson(e as Map<String, dynamic>))
           .toList(),
       notes: (json['notes'] as List<dynamic>).map((e) => e as String).toList(),
     );
@@ -506,6 +548,18 @@ class LoginSessionData {
       displayName: json['displayName'] as String,
       roles: (json['roles'] as List<dynamic>).map((e) => e as String).toList(),
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'accessToken': accessToken,
+      'tokenType': tokenType,
+      'expiresAt': expiresAt,
+      'userId': userId,
+      'loginId': loginId,
+      'displayName': displayName,
+      'roles': roles,
+    };
   }
 }
 
