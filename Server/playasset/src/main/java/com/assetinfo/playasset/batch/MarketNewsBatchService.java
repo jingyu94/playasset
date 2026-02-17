@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
@@ -256,8 +255,7 @@ public class MarketNewsBatchService {
             }
 
             if (generated == 0) {
-                generated = generateSyntheticNews(assets, prioritizedAssetIds);
-                sourceKey = "SYNTHETIC";
+                sourceKey = activeProviders.isEmpty() ? "NO_EXTERNAL_PROVIDER" : "NO_EXTERNAL_DATA";
             }
 
             LocalDateTime finishedAt = LocalDateTime.now();
@@ -291,40 +289,6 @@ public class MarketNewsBatchService {
                     finishedAt);
             log.error("news batch failed", ex);
         }
-    }
-
-    private int generateSyntheticNews(List<AssetMarketSyncTarget> assets, List<Long> prioritizedAssetIds) {
-        List<Long> fallbackAssetIds = assets.stream().map(AssetMarketSyncTarget::assetId).toList();
-        List<Long> assetIds = prioritizedAssetIds == null || prioritizedAssetIds.isEmpty() ? fallbackAssetIds
-                : prioritizedAssetIds;
-        if (assetIds.isEmpty()) {
-            return 0;
-        }
-        long sourceId = repository.ensureInternalNewsSource();
-        int generated = 0;
-        int maxItems = Math.min(3, assetIds.size());
-        for (int i = 0; i < maxItems; i++) {
-            long assetId = assetIds.get(ThreadLocalRandom.current().nextInt(assetIds.size()));
-            String assetName = repository.findAssetName(assetId);
-            String[] labels = { "POSITIVE", "NEUTRAL", "NEGATIVE" };
-            String sentimentLabel = labels[ThreadLocalRandom.current().nextInt(labels.length)];
-            BigDecimal score = (switch (sentimentLabel) {
-                case "POSITIVE" -> BigDecimal.valueOf(ThreadLocalRandom.current().nextDouble(0.65, 0.95));
-                case "NEGATIVE" -> BigDecimal.valueOf(ThreadLocalRandom.current().nextDouble(0.65, 0.95));
-                default -> BigDecimal.valueOf(ThreadLocalRandom.current().nextDouble(0.45, 0.62));
-            }).setScale(5, RoundingMode.HALF_UP);
-
-            String titleTemplate = batchMessage("news.synthetic.title.template", "%s 관련 수급/모멘텀 업데이트");
-            String bodyTemplate = batchMessage("news.synthetic.body.template",
-                    "외부 뉴스 API 키가 없어 내부 샘플 데이터로 생성했어요.");
-            String title = titleTemplate.formatted(assetName);
-            String body = bodyTemplate;
-            String externalId = "sim-" + assetId + "-" + System.currentTimeMillis() + "-" + i;
-
-            repository.insertSyntheticNews(sourceId, assetId, title, body, sentimentLabel, score, externalId);
-            generated++;
-        }
-        return generated;
     }
 
     private List<AssetRef> buildNewsAssetRefs(
