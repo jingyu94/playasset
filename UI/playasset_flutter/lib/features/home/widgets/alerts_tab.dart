@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/models/dashboard_models.dart';
-import 'complementary_accent.dart';
 import '../home_providers.dart';
+import 'complementary_accent.dart';
 
 class AlertsTab extends ConsumerStatefulWidget {
   const AlertsTab({super.key});
@@ -31,7 +31,7 @@ class _AlertsTabState extends ConsumerState<AlertsTab> {
     if (!next.lowEnabled && !next.mediumEnabled && !next.highEnabled) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('레벨은 최소 1개 이상 켜 주세요.')),
+        const SnackBar(content: Text('Enable at least one alert level.')),
       );
       return;
     }
@@ -56,7 +56,7 @@ class _AlertsTabState extends ConsumerState<AlertsTab> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _preferenceError = '알림 레벨 저장에 실패했습니다: $e';
+        _preferenceError = 'Failed to save alert settings: $e';
       });
     } finally {
       if (mounted) {
@@ -84,7 +84,7 @@ class _AlertsTabState extends ConsumerState<AlertsTab> {
             children: [
               Expanded(
                 child: Text(
-                  '알림 센터',
+                  'Alert Center',
                   style: Theme.of(context)
                       .textTheme
                       .headlineSmall
@@ -122,7 +122,7 @@ class _AlertsTabState extends ConsumerState<AlertsTab> {
             error: (error, _) => Card(
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text('알림 레벨 설정을 불러오지 못했습니다: $error'),
+                child: Text('Failed to load alert settings. $error'),
               ),
             ),
           ),
@@ -134,7 +134,134 @@ class _AlertsTabState extends ConsumerState<AlertsTab> {
             error: (error, _) => Card(
                 child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: Text('오류: $error'))),
+                    child: Text('Error: $error'))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAlertDetailModal(AlertData alert) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleText =
+        isDark ? const Color(0xFFF3F6FF) : const Color(0xFF13233A);
+    final bodyText = isDark ? const Color(0xFFD3DCF0) : const Color(0xFF28465C);
+    final metaLabel =
+        isDark ? const Color(0xFF8DA0C2) : const Color(0xFF5E7590);
+    final sheetColor =
+        isDark ? const Color(0xFF0C1A31) : const Color(0xFFF7FBFF);
+    final severityColor = switch (alert.severity) {
+      'HIGH' => const Color(0xFFFF6B81),
+      'MEDIUM' => const Color(0xFFFFB468),
+      _ => const Color(0xFF8EA1C2),
+    };
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: sheetColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 44,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF7F93B4).withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        alert.title,
+                        style: TextStyle(
+                          color: titleText,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 18,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(100),
+                        color: severityColor.withValues(alpha: 0.18),
+                      ),
+                      child: Text(
+                        alert.severity,
+                        style: TextStyle(
+                          color: severityColor,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(alert.message,
+                    style: TextStyle(color: bodyText, height: 1.5)),
+                const SizedBox(height: 14),
+                _detailRow(
+                    'Alert ID', '#${alert.alertEventId}', metaLabel, bodyText),
+                _detailRow('Type', alert.eventType, metaLabel, bodyText),
+                _detailRow('Status', alert.status, metaLabel, bodyText),
+                _detailRow(
+                    'Occurred At', alert.occurredAt, metaLabel, bodyText),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _detailRow(
+    String label,
+    String value,
+    Color labelColor,
+    Color valueColor,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 72,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: labelColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: valueColor,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
           ),
         ],
       ),
@@ -150,7 +277,8 @@ class _AlertsTabState extends ConsumerState<AlertsTab> {
     if (alerts.isEmpty) {
       return const Card(
           child: Padding(
-              padding: EdgeInsets.all(16), child: Text('표시할 알림이 없습니다.')));
+              padding: EdgeInsets.all(16),
+              child: Text('No alerts available.')));
     }
 
     return Column(
@@ -163,77 +291,81 @@ class _AlertsTabState extends ConsumerState<AlertsTab> {
 
         return Card(
           margin: const EdgeInsets.only(bottom: 10),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              gradient: LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: [
-                  severityColor.withValues(alpha: 0.09),
-                  const Color(0x00000000)
-                ],
+          child: InkWell(
+            borderRadius: BorderRadius.circular(18),
+            onTap: () => _showAlertDetailModal(alert),
+            child: Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(18),
+                gradient: LinearGradient(
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                  colors: [
+                    severityColor.withValues(alpha: 0.09),
+                    const Color(0x00000000)
+                  ],
+                ),
               ),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: 4,
-                    height: 58,
-                    margin: const EdgeInsets.only(right: 10, top: 2),
-                    decoration: BoxDecoration(
-                        color: severityColor,
-                        borderRadius: BorderRadius.circular(999)),
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                alert.title,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  color: titleText,
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 4,
+                      height: 58,
+                      margin: const EdgeInsets.only(right: 10, top: 2),
+                      decoration: BoxDecoration(
+                          color: severityColor,
+                          borderRadius: BorderRadius.circular(999)),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  alert.title,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w900,
+                                    color: titleText,
+                                  ),
                                 ),
                               ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 3),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(100),
-                                color: severityColor.withValues(alpha: 0.2),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(100),
+                                  color: severityColor.withValues(alpha: 0.2),
+                                ),
+                                child: Text(
+                                  alert.severity,
+                                  style: TextStyle(
+                                      color: severityColor,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 11),
+                                ),
                               ),
-                              child: Text(
-                                alert.severity,
-                                style: TextStyle(
-                                    color: severityColor,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 11),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          alert.message,
-                          style: TextStyle(height: 1.35, color: bodyText),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '${alert.eventType} · ${alert.status} · ${alert.occurredAt}',
-                          style: TextStyle(color: metaText, fontSize: 12),
-                        ),
-                      ],
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            alert.message,
+                            style: TextStyle(height: 1.35, color: bodyText),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${alert.eventType} | ${alert.status} | ${alert.occurredAt}',
+                            style: TextStyle(color: metaText, fontSize: 12),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -282,7 +414,7 @@ class _AlertPreferenceCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    '수신 레벨 설정',
+                    'Alert Preferences',
                     style: TextStyle(
                       fontWeight: FontWeight.w900,
                       color: titleText,
@@ -298,7 +430,7 @@ class _AlertPreferenceCard extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '현재 $enabledCount개 레벨 수신 중',
+              '$enabledCount levels enabled',
               style: TextStyle(color: subText, fontSize: 12),
             ),
             const SizedBox(height: 10),

@@ -15,6 +15,7 @@ public class RuntimeConfigService {
     public static final String GROUP_ADVISOR_RULE = "ADVISOR_RULE";
     public static final String GROUP_ADVISOR_MESSAGE = "ADVISOR_MESSAGE";
     public static final String GROUP_SIMULATION_MESSAGE = "SIMULATION_MESSAGE";
+    public static final String GROUP_MARKET_BATCH_MESSAGE = "MARKET_BATCH_MESSAGE";
 
     private final PlatformQueryRepository repository;
 
@@ -64,4 +65,3 @@ public class RuntimeConfigService {
         // Cache eviction marker method
     }
 }
-

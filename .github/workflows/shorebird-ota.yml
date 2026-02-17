@@ -1,0 +1,107 @@
+name: playasset-shorebird-ota
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "release 또는 patch"
+        required: true
+        type: choice
+        options:
+          - patch
+          - release
+      target:
+        description: "배포 타깃"
+        required: true
+        default: android
+        type: choice
+        options:
+          - android
+      build_name:
+        description: "예: 0.01"
+        required: true
+        default: "0.01"
+      build_number:
+        description: "예: 1"
+        required: true
+        default: "1"
+      release_version:
+        description: "patch 대상 릴리즈 (예: 0.0.2+2, latest)"
+        required: true
+        default: "latest"
+
+permissions:
+  contents: read
+
+jobs:
+  shorebird-ota:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: UI/playasset_flutter
+    env:
+      SHOREBIRD_TOKEN: ${{ secrets.SHOREBIRD_TOKEN }}
+      SHOREBIRD_APP_ID: ${{ secrets.SHOREBIRD_APP_ID }}
+      API_BASE_URL: ${{ secrets.API_BASE_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate required secrets
+        run: |
+          if [ -z "${SHOREBIRD_TOKEN}" ]; then
+            echo "SHOREBIRD_TOKEN 시크릿이 비어 있습니다."
+            exit 1
+          fi
+          if [ -z "${SHOREBIRD_APP_ID}" ]; then
+            echo "SHOREBIRD_APP_ID 시크릿이 비어 있습니다."
+            exit 1
+          fi
+          if [ -z "${API_BASE_URL}" ]; then
+            echo "API_BASE_URL 시크릿이 비어 있습니다."
+            exit 1
+          fi
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install Shorebird CLI
+        run: curl --proto '=https' --tlsv1.2 https://raw.githubusercontent.com/shorebirdtech/install/main/install.sh -sSf | bash
+
+      - name: Add Shorebird to PATH
+        run: echo "$HOME/.shorebird/bin" >> $GITHUB_PATH
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Shorebird doctor
+        run: shorebird doctor
+
+      - name: Write dart define file
+        run: |
+          printf 'API_BASE_URL=%s\n' "${API_BASE_URL}" > .shorebird.env
+
+      - name: OTA release
+        if: ${{ inputs.mode == 'release' }}
+        run: >
+          shorebird release --platforms=${{ inputs.target }}
+          --build-name=${{ inputs.build_name }}
+          --build-number=${{ inputs.build_number }}
+          --dart-define-from-file=.shorebird.env
+          --flutter-version=stable
+
+      - name: OTA patch
+        if: ${{ inputs.mode == 'patch' }}
+        run: >
+          shorebird patch --platforms=${{ inputs.target }}
+          --release-version=${{ inputs.release_version }}
+          --dart-define-from-file=.shorebird.env
+          --flutter-version=stable

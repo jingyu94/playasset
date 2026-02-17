@@ -16,25 +16,25 @@ class ComplementaryAccent extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor =
-        isDark ? const Color(0xFF2A3D62) : const Color(0xFFD3E0F8);
+        isDark ? const Color(0xFF2A3B59) : const Color(0xFFD3E0F8);
     final iconColor =
         isDark ? const Color(0xFFEAF1FF) : const Color(0xFF1B2C4D);
 
     return SizedBox(
-      width: 54,
-      height: 30,
+      width: 50,
+      height: 26,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Positioned(
-            right: -6,
-            top: -7,
-            child: _glowDot(primary.withOpacity(0.34), 14),
+            right: -5,
+            top: -6,
+            child: _glowDot(primary.withOpacity(0.12), 8),
           ),
           Positioned(
-            left: -5,
-            bottom: -7,
-            child: _glowDot(secondary.withOpacity(0.3), 12),
+            left: -4,
+            bottom: -6,
+            child: _glowDot(secondary.withOpacity(0.1), 8),
           ),
           Container(
             decoration: BoxDecoration(
@@ -44,8 +44,8 @@ class ComplementaryAccent extends StatelessWidget {
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
                 colors: [
-                  primary.withOpacity(0.17),
-                  secondary.withOpacity(0.14),
+                  primary.withOpacity(isDark ? 0.11 : 0.17),
+                  secondary.withOpacity(isDark ? 0.09 : 0.14),
                 ],
               ),
             ),
@@ -53,18 +53,18 @@ class ComplementaryAccent extends StatelessWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Icon(icon, size: 14, color: iconColor),
+                Icon(icon, size: 13, color: iconColor),
                 Container(
-                  width: 6,
-                  height: 6,
+                  width: 5,
+                  height: 5,
                   decoration: BoxDecoration(
                     color: primary,
                     shape: BoxShape.circle,
                   ),
                 ),
                 Container(
-                  width: 6,
-                  height: 6,
+                  width: 5,
+                  height: 5,
                   decoration: BoxDecoration(
                     color: secondary,
                     shape: BoxShape.circle,

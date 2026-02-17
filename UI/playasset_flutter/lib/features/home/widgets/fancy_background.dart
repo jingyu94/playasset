@@ -9,11 +9,11 @@ class FancyBackground extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final background = isDark
-        ? const [Color(0xFF0D1526), Color(0xFF0A1020), Color(0xFF080E19)]
+        ? const [Color(0xFF060D18), Color(0xFF091323), Color(0xFF0B1628)]
         : const [Color(0xFFEFF4FF), Color(0xFFF7FAFF), Color(0xFFE9F1FF)];
-    final orb1 = isDark ? const Color(0x334C8DFF) : const Color(0x334989FF);
-    final orb2 = isDark ? const Color(0x22FF6B81) : const Color(0x22FF8A6B);
-    final orb3 = isDark ? const Color(0x224A78D2) : const Color(0x2244D5C9);
+    final orb1 = isDark ? const Color(0x10395D9A) : const Color(0x1F4989FF);
+    final orb2 = isDark ? const Color(0x0D2E4A73) : const Color(0x16FF8A6B);
+    final orb3 = isDark ? const Color(0x0D4F6B8A) : const Color(0x1644D5C9);
 
     return Stack(
       children: [
@@ -26,9 +26,9 @@ class FancyBackground extends StatelessWidget {
             ),
           ),
         ),
-        Positioned(top: -120, left: -70, child: _orb(orb1, 260)),
-        Positioned(top: 180, right: -90, child: _orb(orb2, 240)),
-        Positioned(bottom: -130, left: 40, child: _orb(orb3, 280)),
+        Positioned(top: -76, left: -42, child: _orb(orb1, 150)),
+        Positioned(top: 270, right: -64, child: _orb(orb2, 138)),
+        Positioned(bottom: -84, left: 34, child: _orb(orb3, 162)),
         child,
       ],
     );

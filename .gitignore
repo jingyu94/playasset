@@ -1,0 +1,10 @@
+# Local environment secrets
+.env
+.env.*
+!.env.example
+
+# Common secret artifacts
+*.pem
+*.key
+*.p12
+*.pfx

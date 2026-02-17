@@ -7,17 +7,20 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.assetinfo.playasset.api.v1.admin.BatchOpsService;
 import com.assetinfo.playasset.api.v1.admin.AdminService;
 import com.assetinfo.playasset.api.v1.auth.Authz;
 import com.assetinfo.playasset.api.v1.dto.AdminGroupResponse;
 import com.assetinfo.playasset.api.v1.dto.AdminUserResponse;
 import com.assetinfo.playasset.api.v1.dto.ApiResponse;
+import com.assetinfo.playasset.api.v1.dto.BatchJobTriggerResponse;
 import com.assetinfo.playasset.api.v1.dto.PaidServicePolicyResponse;
 import com.assetinfo.playasset.api.v1.dto.RuntimeConfigResponse;
 import com.assetinfo.playasset.api.v1.dto.UpdateGroupPermissionsRequest;
@@ -34,9 +37,11 @@ import jakarta.validation.Valid;
 public class AdminController {
 
     private final AdminService adminService;
+    private final BatchOpsService batchOpsService;
 
-    public AdminController(AdminService adminService) {
+    public AdminController(AdminService adminService, BatchOpsService batchOpsService) {
         this.adminService = adminService;
+        this.batchOpsService = batchOpsService;
     }
 
     @GetMapping("/paid-services/policies")
@@ -104,5 +109,24 @@ public class AdminController {
             @Valid @RequestBody UpdateRuntimeConfigRequest request) {
         Authz.requireAdmin();
         return ApiResponse.ok(adminService.upsertRuntimeConfig(groupCode, configKey, request));
+    }
+
+    @PostMapping("/jobs/symbol-sync")
+    public ApiResponse<BatchJobTriggerResponse> triggerSymbolSync(
+            @RequestParam(name = "maxSymbols", defaultValue = "3000") int maxSymbols) {
+        Authz.requireAdmin();
+        return ApiResponse.ok(batchOpsService.triggerSymbolSync(maxSymbols));
+    }
+
+    @PostMapping("/jobs/market-refresh")
+    public ApiResponse<BatchJobTriggerResponse> triggerMarketRefresh() {
+        Authz.requireAdmin();
+        return ApiResponse.ok(batchOpsService.triggerMarketRefresh());
+    }
+
+    @PostMapping("/jobs/news-refresh")
+    public ApiResponse<BatchJobTriggerResponse> triggerNewsRefresh() {
+        Authz.requireAdmin();
+        return ApiResponse.ok(batchOpsService.triggerNewsRefresh());
     }
 }

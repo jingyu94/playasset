@@ -13,11 +13,13 @@ import lombok.Setter;
 public class ExternalProviderProperties {
     private Provider market = new Provider();
     private Provider news = new Provider();
+    private Provider fx = new Provider();
 
     @Getter
     @Setter
     public static class Provider {
         private String baseUrl = "";
         private String apiKey = "";
+        private int freeMaxSymbols = 8;
     }
 }

@@ -784,6 +784,51 @@ public class PlatformQueryRepository {
                 (rs, rowNum) -> rs.getLong("asset_id"));
     }
 
+    public List<AssetMarketSyncTarget> findAllAssetSyncTargets() {
+        return jdbcTemplate.query("""
+                SELECT asset_id, symbol, market, currency
+                FROM assets
+                WHERE is_active = 1
+                ORDER BY
+                    CASE WHEN currency = 'USD' THEN 0 ELSE 1 END,
+                    asset_id
+                """, (rs, rowNum) -> new AssetMarketSyncTarget(
+                rs.getLong("asset_id"),
+                rs.getString("symbol"),
+                rs.getString("market"),
+                rs.getString("currency")));
+    }
+
+    public void batchUpsertAssetCatalog(List<AssetCatalogUpsertCommand> commands) {
+        if (commands == null || commands.isEmpty()) {
+            return;
+        }
+        jdbcTemplate.batchUpdate("""
+                INSERT INTO assets(symbol, name, market, currency, is_active, created_at, updated_at)
+                VALUES (?, ?, ?, ?, 1, NOW(), NOW())
+                ON DUPLICATE KEY UPDATE
+                    name = VALUES(name),
+                    currency = VALUES(currency),
+                    is_active = 1,
+                    updated_at = NOW()
+                """, commands, commands.size(), (ps, item) -> {
+                    ps.setString(1, item.symbol());
+                    ps.setString(2, item.assetName());
+                    ps.setString(3, item.market());
+                    ps.setString(4, item.currency());
+                });
+    }
+
+    public int countActiveAssetsByMarketPrefix(String marketPrefix) {
+        Integer count = jdbcTemplate.queryForObject("""
+                SELECT COUNT(*)
+                FROM assets
+                WHERE is_active = 1
+                  AND market LIKE CONCAT(?, '%')
+                """, Integer.class, marketPrefix);
+        return count == null ? 0 : count;
+    }
+
     public void batchUpsertDailyCandles(List<CandleUpsertCommand> commands) {
         if (commands.isEmpty()) {
             return;
@@ -996,6 +1041,20 @@ public class PlatformQueryRepository {
             BigDecimal lowPrice,
             BigDecimal closePrice,
             BigDecimal volume) {
+    }
+
+    public record AssetMarketSyncTarget(
+            long assetId,
+            String symbol,
+            String market,
+            String currency) {
+    }
+
+    public record AssetCatalogUpsertCommand(
+            String symbol,
+            String assetName,
+            String market,
+            String currency) {
     }
 
     public record DailyPortfolioValuePoint(
