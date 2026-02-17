@@ -756,3 +756,28 @@ class RuntimeConfigData {
     );
   }
 }
+
+class TransactionImportResultData {
+  TransactionImportResultData({
+    required this.totalRows,
+    required this.importedRows,
+    required this.failedRows,
+    required this.errors,
+  });
+
+  final int totalRows;
+  final int importedRows;
+  final int failedRows;
+  final List<String> errors;
+
+  factory TransactionImportResultData.fromJson(Map<String, dynamic> json) {
+    return TransactionImportResultData(
+      totalRows: json['totalRows'] as int? ?? 0,
+      importedRows: json['importedRows'] as int? ?? 0,
+      failedRows: json['failedRows'] as int? ?? 0,
+      errors: (json['errors'] as List<dynamic>? ?? [])
+          .map((e) => e.toString())
+          .toList(),
+    );
+  }
+}

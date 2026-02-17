@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../../../core/models/dashboard_models.dart';
 import '../home_providers.dart';
@@ -37,6 +38,8 @@ class AdminTab extends ConsumerWidget {
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 12),
+            const _TransactionUploadCard(),
+            const SizedBox(height: 12),
             TabBar(
               isScrollable: true,
               labelColor: _adminTitleText(context),
@@ -63,6 +66,190 @@ class AdminTab extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _TransactionUploadCard extends ConsumerStatefulWidget {
+  const _TransactionUploadCard();
+
+  @override
+  ConsumerState<_TransactionUploadCard> createState() =>
+      _TransactionUploadCardState();
+}
+
+class _TransactionUploadCardState
+    extends ConsumerState<_TransactionUploadCard> {
+  final _userIdController = TextEditingController();
+  final _accountIdController = TextEditingController();
+  PlatformFile? _picked;
+  bool _uploading = false;
+  TransactionImportResultData? _result;
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = ref.read(sessionControllerProvider).userId;
+    if (uid != null) {
+      _userIdController.text = uid.toString();
+    }
+  }
+
+  @override
+  void dispose() {
+    _userIdController.dispose();
+    _accountIdController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['xlsx'],
+      withData: true,
+    );
+    if (!mounted || result == null || result.files.isEmpty) return;
+    setState(() => _picked = result.files.first);
+  }
+
+  Future<void> _upload() async {
+    final userId = int.tryParse(_userIdController.text.trim());
+    final accountId = int.tryParse(_accountIdController.text.trim());
+    if (userId == null || accountId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('userId/accountId를 숫자로 입력하세요.')),
+      );
+      return;
+    }
+    final picked = _picked;
+    if (picked == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('xlsx 파일을 먼저 선택하세요.')),
+      );
+      return;
+    }
+    setState(() => _uploading = true);
+    try {
+      final api = ref.read(apiClientProvider);
+      final res = await api.uploadTransactionExcel(
+        userId: userId,
+        accountId: accountId,
+        fileName: picked.name,
+        fileBytes: picked.bytes,
+        filePath: picked.path,
+      );
+      ref.invalidate(dashboardProvider);
+      ref.invalidate(positionsProvider);
+      setState(() => _result = res);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content:
+                  Text('업로드 완료: ${res.importedRows}/${res.totalRows}건 반영')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('업로드 실패: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _uploading = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _adminPanelBg(context),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: _adminPanelBorder(context)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '거래 엑셀 업로드 (.xlsx)',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _userIdController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'userId',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _accountIdController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'accountId',
+                    isDense: true,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: _uploading ? null : _pickFile,
+                icon: const Icon(Icons.attach_file_rounded),
+                label: const Text('파일 선택'),
+              ),
+              FilledButton.icon(
+                onPressed: _uploading ? null : _upload,
+                icon: _uploading
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cloud_upload_rounded),
+                label: const Text('업로드'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _picked == null ? '선택된 파일 없음' : _picked!.name,
+            style: TextStyle(color: _adminMutedText(context), fontSize: 12),
+          ),
+          if (_result != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              '결과: 총 ${_result!.totalRows}건 / 성공 ${_result!.importedRows}건 / 실패 ${_result!.failedRows}건',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+            ),
+            if (_result!.errors.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              ..._result!.errors.take(5).map((e) => Text(
+                    '- $e',
+                    style: TextStyle(
+                        color: _adminMutedText(context), fontSize: 11),
+                  )),
+            ],
+          ],
+        ],
       ),
     );
   }

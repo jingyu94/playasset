@@ -33,6 +33,7 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
 	implementation 'org.springframework.security:spring-security-crypto'
 	implementation 'org.springframework.kafka:spring-kafka'
+	implementation 'org.apache.poi:poi-ooxml:5.2.5'
 	developmentOnly 'org.springframework.boot:spring-boot-devtools'
 	implementation 'org.flywaydb:flyway-core'
 	implementation 'org.flywaydb:flyway-mysql'

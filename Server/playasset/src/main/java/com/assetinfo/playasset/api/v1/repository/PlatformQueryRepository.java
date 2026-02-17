@@ -779,6 +779,24 @@ public class PlatformQueryRepository {
         return count != null && count > 0;
     }
 
+    public Long findAssetIdBySymbol(String symbol) {
+        if (symbol == null || symbol.isBlank()) {
+            return null;
+        }
+        List<Long> rows = jdbcTemplate.query(
+                """
+                        SELECT asset_id
+                        FROM assets
+                        WHERE UPPER(symbol) = UPPER(?)
+                          AND is_active = 1
+                        ORDER BY asset_id DESC
+                        LIMIT 1
+                        """,
+                (rs, rowNum) -> rs.getLong("asset_id"),
+                symbol.trim());
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
     public List<Long> findAllAssetIds() {
         return jdbcTemplate.query("SELECT asset_id FROM assets WHERE is_active = 1 ORDER BY asset_id",
                 (rs, rowNum) -> rs.getLong("asset_id"));

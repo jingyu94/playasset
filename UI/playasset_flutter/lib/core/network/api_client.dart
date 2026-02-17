@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'dart:typed_data';
 
 import '../config/app_env.dart';
 import '../models/dashboard_models.dart';
@@ -267,6 +268,32 @@ class PlayAssetApiClient {
       },
     );
     return RuntimeConfigData.fromJson(_extractData(response.data));
+  }
+
+  Future<TransactionImportResultData> uploadTransactionExcel({
+    required int userId,
+    required int accountId,
+    required String fileName,
+    Uint8List? fileBytes,
+    String? filePath,
+  }) async {
+    MultipartFile multipart;
+    if (fileBytes != null) {
+      multipart = MultipartFile.fromBytes(fileBytes, filename: fileName);
+    } else if (filePath != null && filePath.isNotEmpty) {
+      multipart = await MultipartFile.fromFile(filePath, filename: fileName);
+    } else {
+      throw StateError('No file payload');
+    }
+
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/v1/users/$userId/portfolio/transactions/upload',
+      data: FormData.fromMap({
+        'accountId': accountId,
+        'file': multipart,
+      }),
+    );
+    return TransactionImportResultData.fromJson(_extractData(response.data));
   }
 
   Map<String, dynamic> _extractData(Map<String, dynamic>? root) {

@@ -3,6 +3,7 @@ package com.assetinfo.playasset.api.v1.controller;
 import java.util.List;
 
 import org.springframework.validation.annotation.Validated;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,7 +12,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import com.assetinfo.playasset.api.v1.dto.AlertPreferenceResponse;
 import com.assetinfo.playasset.api.v1.dto.AlertResponse;
@@ -23,6 +26,7 @@ import com.assetinfo.playasset.api.v1.dto.InvestmentProfileResponse;
 import com.assetinfo.playasset.api.v1.dto.PortfolioAdviceResponse;
 import com.assetinfo.playasset.api.v1.dto.PortfolioSimulationResponse;
 import com.assetinfo.playasset.api.v1.dto.PositionSnapshot;
+import com.assetinfo.playasset.api.v1.dto.TransactionImportResponse;
 import com.assetinfo.playasset.api.v1.dto.UpdateAlertPreferenceRequest;
 import com.assetinfo.playasset.api.v1.dto.UpsertInvestmentProfileRequest;
 import com.assetinfo.playasset.api.v1.dto.WatchlistItemResponse;
@@ -30,6 +34,7 @@ import com.assetinfo.playasset.api.v1.auth.Authz;
 import com.assetinfo.playasset.api.v1.quota.PaidServiceKeys;
 import com.assetinfo.playasset.api.v1.quota.PaidServiceQuotaService;
 import com.assetinfo.playasset.api.v1.service.PlatformService;
+import com.assetinfo.playasset.api.v1.service.TransactionImportService;
 
 import jakarta.validation.Valid;
 
@@ -39,10 +44,15 @@ import jakarta.validation.Valid;
 public class PlatformController {
 
     private final PlatformService platformService;
+    private final TransactionImportService transactionImportService;
     private final PaidServiceQuotaService quotaService;
 
-    public PlatformController(PlatformService platformService, PaidServiceQuotaService quotaService) {
+    public PlatformController(
+            PlatformService platformService,
+            TransactionImportService transactionImportService,
+            PaidServiceQuotaService quotaService) {
         this.platformService = platformService;
+        this.transactionImportService = transactionImportService;
         this.quotaService = quotaService;
     }
 
@@ -134,5 +144,14 @@ public class PlatformController {
             @Valid @RequestBody CreateTransactionRequest request) {
         Authz.requireUserOrAdmin(userId);
         return ApiResponse.ok(platformService.createTransaction(userId, request));
+    }
+
+    @PostMapping(value = "/portfolio/transactions/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<TransactionImportResponse> uploadTransactions(
+            @PathVariable long userId,
+            @RequestParam("accountId") long accountId,
+            @RequestPart("file") MultipartFile file) {
+        Authz.requireUserOrAdmin(userId);
+        return ApiResponse.ok(transactionImportService.importTransactionsFromExcel(userId, accountId, file));
     }
 }

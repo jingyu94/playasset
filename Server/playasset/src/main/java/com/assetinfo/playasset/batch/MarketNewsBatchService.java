@@ -75,7 +75,7 @@ public class MarketNewsBatchService {
         LocalDateTime startedAt = LocalDateTime.now();
         boolean marketConfigured = !providerProperties.getMarket().getApiKey().isBlank()
                 && !providerProperties.getMarket().getBaseUrl().isBlank();
-        String sourceKey = marketConfigured ? "EXTERNAL_API" : "SYNTHETIC";
+        String sourceKey = marketConfigured ? "EXTERNAL_API" : "NO_EXTERNAL_PROVIDER";
         try {
             quotaService.consume(PaidServiceKeys.MARKET_BATCH_REFRESH);
             List<AssetMarketSyncTarget> assets = repository.findAllAssetSyncTargets();
@@ -84,7 +84,6 @@ public class MarketNewsBatchService {
             BigDecimal usdKrwRate = fxRateProvider.fetchUsdKrw().orElse(BigDecimal.valueOf(1300));
             int externalMaxSymbols = Math.max(0, providerProperties.getMarket().getFreeMaxSymbols());
             int externalUsed = 0;
-            int syntheticUsed = 0;
             Map<Long, QuoteSnapshot> quoteByAssetId = new HashMap<>();
             Set<String> providerKeys = new java.util.LinkedHashSet<>();
 
@@ -116,7 +115,6 @@ public class MarketNewsBatchService {
             }
 
             for (AssetMarketSyncTarget asset : assets) {
-                BigDecimal lastClose = repository.findLatestClosePrice(asset.assetId());
                 Optional<QuoteSnapshot> quoteSnapshot = Optional.ofNullable(quoteByAssetId.get(asset.assetId()));
                 if (quoteSnapshot.isPresent()) {
                     externalUsed++;
@@ -131,20 +129,14 @@ public class MarketNewsBatchService {
                             toKrw(quote.lowPrice(), fx),
                             toKrw(quote.closePrice(), fx),
                             quote.volume().setScale(0, RoundingMode.HALF_UP)));
-                    continue;
                 }
-
-                syntheticUsed++;
-                commands.add(buildSyntheticCandle(asset.assetId(), candleTime, lastClose));
             }
 
             repository.batchUpsertDailyCandles(commands);
-            if (externalUsed > 0 && syntheticUsed > 0) {
-                sourceKey = "MIXED_" + String.join("+", providerKeys) + "_SYNTHETIC";
-            } else if (externalUsed > 0) {
+            if (externalUsed > 0) {
                 sourceKey = "EXTERNAL_" + String.join("+", providerKeys);
             } else {
-                sourceKey = "SYNTHETIC";
+                sourceKey = marketConfigured ? "NO_EXTERNAL_DATA" : "NO_EXTERNAL_PROVIDER";
             }
 
             LocalDateTime finishedAt = LocalDateTime.now();
@@ -159,11 +151,10 @@ public class MarketNewsBatchService {
                     finishedAt);
             cacheEvictService.evictMarketDrivenCaches();
             log.info(
-                    "market batch finished: source={}, records={}, externalUsed={}, syntheticUsed={}, usdKrw={}, providers={}, manual={}",
+                    "market batch finished: source={}, records={}, externalUsed={}, usdKrw={}, providers={}, manual={}",
                     sourceKey,
                     commands.size(),
                     externalUsed,
-                    syntheticUsed,
                     usdKrwRate,
                     providerKeys,
                     manualTrigger);
@@ -257,21 +248,6 @@ public class MarketNewsBatchService {
 
     private String batchMessage(String key, String defaultValue) {
         return runtimeConfigService.getString(RuntimeConfigService.GROUP_MARKET_BATCH_MESSAGE, key, defaultValue);
-    }
-
-    private CandleUpsertCommand buildSyntheticCandle(long assetId, LocalDateTime candleTime, BigDecimal lastClose) {
-        BigDecimal movement = BigDecimal
-                .valueOf(ThreadLocalRandom.current().nextDouble(-0.025, 0.035))
-                .setScale(6, RoundingMode.HALF_UP);
-        BigDecimal openPrice = lastClose;
-        BigDecimal closePrice = lastClose.multiply(BigDecimal.ONE.add(movement))
-                .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal highPrice = openPrice.max(closePrice).multiply(BigDecimal.valueOf(1.004))
-                .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal lowPrice = openPrice.min(closePrice).multiply(BigDecimal.valueOf(0.996))
-                .setScale(2, RoundingMode.HALF_UP);
-        BigDecimal volume = BigDecimal.valueOf(ThreadLocalRandom.current().nextLong(250000, 13000000));
-        return new CandleUpsertCommand(assetId, candleTime, openPrice, highPrice, lowPrice, closePrice, volume);
     }
 
     private BigDecimal toKrw(BigDecimal value, BigDecimal fxRate) {
