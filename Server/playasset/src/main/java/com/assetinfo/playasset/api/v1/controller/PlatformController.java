@@ -163,7 +163,7 @@ public class PlatformController {
     @PostMapping(value = "/portfolio/transactions/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<TransactionImportResponse> uploadTransactions(
             @PathVariable long userId,
-            @RequestParam("accountId") long accountId,
+            @RequestParam(name = "accountId", required = false) Long accountId,
             @RequestPart("file") MultipartFile file) {
         Authz.requireUserOrAdmin(userId);
         return ApiResponse.ok(transactionImportService.importTransactionsFromExcel(userId, accountId, file));

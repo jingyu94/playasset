@@ -82,7 +82,6 @@ class _TransactionUploadCard extends ConsumerStatefulWidget {
 class _TransactionUploadCardState
     extends ConsumerState<_TransactionUploadCard> {
   final _userIdController = TextEditingController();
-  final _accountIdController = TextEditingController();
   PlatformFile? _picked;
   bool _uploading = false;
   TransactionImportResultData? _result;
@@ -99,7 +98,6 @@ class _TransactionUploadCardState
   @override
   void dispose() {
     _userIdController.dispose();
-    _accountIdController.dispose();
     super.dispose();
   }
 
@@ -115,10 +113,9 @@ class _TransactionUploadCardState
 
   Future<void> _upload() async {
     final userId = int.tryParse(_userIdController.text.trim());
-    final accountId = int.tryParse(_accountIdController.text.trim());
-    if (userId == null || accountId == null) {
+    if (userId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('userId/accountId를 숫자로 입력하세요.')),
+        const SnackBar(content: Text('userId를 숫자로 입력하세요.')),
       );
       return;
     }
@@ -134,7 +131,6 @@ class _TransactionUploadCardState
       final api = ref.read(apiClientProvider);
       final res = await api.uploadTransactionExcel(
         userId: userId,
-        accountId: accountId,
         fileName: picked.name,
         fileBytes: picked.bytes,
         filePath: picked.path,
@@ -187,18 +183,6 @@ class _TransactionUploadCardState
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
                     labelText: 'userId',
-                    isDense: true,
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: _accountIdController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'accountId',
                     isDense: true,
                     border: OutlineInputBorder(),
                   ),

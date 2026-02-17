@@ -272,7 +272,7 @@ class PlayAssetApiClient {
 
   Future<TransactionImportResultData> uploadTransactionExcel({
     required int userId,
-    required int accountId,
+    int? accountId,
     required String fileName,
     Uint8List? fileBytes,
     String? filePath,
@@ -289,7 +289,7 @@ class PlayAssetApiClient {
     final response = await _dio.post<Map<String, dynamic>>(
       '/v1/users/$userId/portfolio/transactions/upload',
       data: FormData.fromMap({
-        'accountId': accountId,
+        if (accountId != null) 'accountId': accountId,
         'file': multipart,
       }),
     );

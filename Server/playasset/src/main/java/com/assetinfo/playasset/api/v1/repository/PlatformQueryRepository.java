@@ -812,6 +812,57 @@ public class PlatformQueryRepository {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    public long ensurePrimaryAccountIdByUser(long userId) {
+        Long existing = findPrimaryAccountIdByUser(userId);
+        if (existing != null) {
+            return existing;
+        }
+
+        Long portfolioId = jdbcTemplate.query(
+                """
+                        SELECT portfolio_id
+                        FROM portfolios
+                        WHERE user_id = ?
+                        ORDER BY portfolio_id
+                        LIMIT 1
+                        """,
+                (rs, rowNum) -> rs.getLong("portfolio_id"),
+                userId).stream().findFirst().orElse(null);
+
+        if (portfolioId == null) {
+            KeyHolder portfolioKey = new GeneratedKeyHolder();
+            jdbcTemplate.update(connection -> {
+                PreparedStatement ps = connection.prepareStatement("""
+                        INSERT INTO portfolios(user_id, name, base_currency)
+                        VALUES (?, 'Default Portfolio', 'KRW')
+                        """, new String[] { "portfolio_id" });
+                ps.setLong(1, userId);
+                return ps;
+            }, portfolioKey);
+            Number generated = portfolioKey.getKey();
+            if (generated == null) {
+                throw new IllegalStateException("Failed to create default portfolio");
+            }
+            portfolioId = generated.longValue();
+        }
+
+        KeyHolder accountKey = new GeneratedKeyHolder();
+        final long targetPortfolioId = portfolioId;
+        jdbcTemplate.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement("""
+                    INSERT INTO portfolio_accounts(portfolio_id, broker_name, account_label)
+                    VALUES (?, 'MANUAL', 'Default Account')
+                    """, new String[] { "account_id" });
+            ps.setLong(1, targetPortfolioId);
+            return ps;
+        }, accountKey);
+        Number account = accountKey.getKey();
+        if (account == null) {
+            throw new IllegalStateException("Failed to create default account");
+        }
+        return account.longValue();
+    }
+
     public Long findOwnedAccountIdByUserAndAsset(long userId, long assetId) {
         List<Long> rows = jdbcTemplate.query(
                 """

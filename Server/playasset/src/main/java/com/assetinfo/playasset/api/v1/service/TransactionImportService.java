@@ -42,11 +42,14 @@ public class TransactionImportService {
     }
 
     @Transactional
-    public TransactionImportResponse importTransactionsFromExcel(long userId, long accountId, MultipartFile file) {
+    public TransactionImportResponse importTransactionsFromExcel(long userId, Long accountId, MultipartFile file) {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("Empty file");
         }
-        if (!repository.isAccountOwnedByUser(userId, accountId)) {
+        long resolvedAccountId = accountId == null
+                ? repository.ensurePrimaryAccountIdByUser(userId)
+                : accountId;
+        if (!repository.isAccountOwnedByUser(userId, resolvedAccountId)) {
             throw new IllegalArgumentException("Account ownership validation failed");
         }
 
@@ -91,7 +94,7 @@ public class TransactionImportService {
                     }
 
                     repository.createTransaction(new CreateTransactionRequest(
-                            accountId,
+                            resolvedAccountId,
                             assetId,
                             side,
                             quantity,
