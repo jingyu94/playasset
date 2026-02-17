@@ -296,6 +296,22 @@ class PlayAssetApiClient {
     return TransactionImportResultData.fromJson(_extractData(response.data));
   }
 
+  Future<PositionData> updateHoldingPosition({
+    required int userId,
+    required int assetId,
+    required double quantity,
+    required double avgCost,
+  }) async {
+    final response = await _dio.put<Map<String, dynamic>>(
+      '/v1/users/$userId/portfolio/positions/$assetId',
+      data: {
+        'quantity': quantity,
+        'avgCost': avgCost,
+      },
+    );
+    return PositionData.fromJson(_extractData(response.data));
+  }
+
   Map<String, dynamic> _extractData(Map<String, dynamic>? root) {
     if (root == null || root['success'] != true) {
       throw StateError('API 응답 형식이 올바르지 않습니다.');

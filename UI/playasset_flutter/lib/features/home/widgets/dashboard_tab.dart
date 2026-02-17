@@ -4578,16 +4578,16 @@ class _EtfRecommendationCardState extends State<_EtfRecommendationCard> {
   }
 }
 
-class _HoldingAssetCard extends StatefulWidget {
+class _HoldingAssetCard extends ConsumerStatefulWidget {
   const _HoldingAssetCard({required this.positions});
 
   final List<PositionData> positions;
 
   @override
-  State<_HoldingAssetCard> createState() => _HoldingAssetCardState();
+  ConsumerState<_HoldingAssetCard> createState() => _HoldingAssetCardState();
 }
 
-class _HoldingAssetCardState extends State<_HoldingAssetCard> {
+class _HoldingAssetCardState extends ConsumerState<_HoldingAssetCard> {
   static const int _initialVisibleLimit = 3;
   int _visibleCount = 0;
 
@@ -4630,30 +4630,203 @@ class _HoldingAssetCardState extends State<_HoldingAssetCard> {
   void _openPositionSheet(PositionData position) {
     final won =
         NumberFormat.currency(locale: 'ko_KR', symbol: '₩ ', decimalDigits: 0);
-    final quantity =
-        NumberFormat.decimalPattern('ko_KR').format(position.quantity);
-    showAssetDetailSheet(
-      context,
-      data: AssetDetailSheetData(
-        assetName: position.assetName,
-        symbol: _normalizeTicker(position.symbol),
-        price: position.currentPrice,
-        fields: [
-          AssetDetailField(label: '보유 수량', value: '$quantity주'),
-          AssetDetailField(label: '평균 단가', value: won.format(position.avgCost)),
-          AssetDetailField(
-              label: '평가 금액', value: won.format(position.valuation)),
-          AssetDetailField(
-            label: '수익률',
-            value:
-                '${position.pnlRate >= 0 ? '+' : ''}${position.pnlRate.toStringAsFixed(2)}%',
-            valueColor: position.pnlRate >= 0
-                ? const Color(0xFFFF6B81)
-                : const Color(0xFF5CA8FF),
-          ),
-        ],
-      ),
+    final quantityController = TextEditingController(
+      text: position.quantity.toStringAsFixed(4),
     );
+    final avgCostController = TextEditingController(
+      text: position.avgCost.toStringAsFixed(2),
+    );
+    bool saving = false;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final isDark = Theme.of(sheetContext).brightness == Brightness.dark;
+        final titleColor =
+            isDark ? const Color(0xFFE8EEFA) : const Color(0xFF1F2C3D);
+        final bodyColor =
+            isDark ? const Color(0xFFA7B7D2) : const Color(0xFF58708F);
+        final fieldBg =
+            isDark ? const Color(0xFF111D33) : const Color(0xFFF4F8FF);
+        final fieldBorder =
+            isDark ? const Color(0xFF2D466C) : const Color(0xFFD4E2F5);
+
+        return StatefulBuilder(
+          builder: (context, setSheetState) => Padding(
+            padding: EdgeInsets.only(
+              left: 12,
+              right: 12,
+              bottom: MediaQuery.of(context).viewInsets.bottom + 12,
+            ),
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF0C1527) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark
+                      ? const Color(0xFF2A3F63)
+                      : const Color(0xFFD8E4F5),
+                ),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(position.assetName,
+                        style: TextStyle(
+                            color: titleColor,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 16)),
+                    const SizedBox(height: 2),
+                    Text(_normalizeTicker(position.symbol),
+                        style: TextStyle(color: bodyColor, fontSize: 12)),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: quantityController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: '보유수량 (수정 가능)',
+                        filled: true,
+                        fillColor: fieldBg,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: fieldBorder),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: fieldBorder),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    TextField(
+                      controller: avgCostController,
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: '평균단가 (수정 가능)',
+                        prefixText: '₩ ',
+                        filled: true,
+                        fillColor: fieldBg,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: fieldBorder),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: fieldBorder),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '현재 평가금액 ${won.format(position.valuation)}',
+                            style: TextStyle(color: bodyColor, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: saving
+                                ? null
+                                : () => Navigator.of(context).pop(),
+                            child: const Text('닫기'),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: saving
+                                ? null
+                                : () async {
+                                    final quantity = double.tryParse(
+                                        quantityController.text.trim());
+                                    final avgCost = double.tryParse(
+                                        avgCostController.text.trim());
+                                    if (quantity == null ||
+                                        avgCost == null ||
+                                        quantity < 0 ||
+                                        avgCost < 0) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        const SnackBar(
+                                            content:
+                                                Text('수량/단가를 올바르게 입력해 주세요.')),
+                                      );
+                                      return;
+                                    }
+                                    setSheetState(() => saving = true);
+                                    final sheetNavigator =
+                                        Navigator.of(context);
+                                    final rootMessenger =
+                                        ScaffoldMessenger.of(this.context);
+                                    try {
+                                      final userId =
+                                          ref.read(currentUserIdProvider);
+                                      final api = ref.read(apiClientProvider);
+                                      await api.updateHoldingPosition(
+                                        userId: userId,
+                                        assetId: position.assetId,
+                                        quantity: quantity,
+                                        avgCost: avgCost,
+                                      );
+                                      ref.invalidate(positionsProvider);
+                                      ref.invalidate(dashboardProvider);
+                                      ref.invalidate(advisorProvider);
+                                      if (mounted) {
+                                        sheetNavigator.pop();
+                                        rootMessenger.showSnackBar(
+                                          const SnackBar(
+                                              content: Text('보유정보를 저장했습니다.')),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (mounted) {
+                                        rootMessenger.showSnackBar(
+                                          SnackBar(content: Text('저장 실패: $e')),
+                                        );
+                                      }
+                                    } finally {
+                                      if (context.mounted) {
+                                        setSheetState(() => saving = false);
+                                      }
+                                    }
+                                  },
+                            child: saving
+                                ? const SizedBox(
+                                    height: 16,
+                                    width: 16,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                  )
+                                : const Text('저장'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    ).whenComplete(() {
+      quantityController.dispose();
+      avgCostController.dispose();
+    });
   }
 
   @override

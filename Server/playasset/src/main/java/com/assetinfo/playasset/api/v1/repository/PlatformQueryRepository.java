@@ -797,6 +797,44 @@ public class PlatformQueryRepository {
         return rows.isEmpty() ? null : rows.get(0);
     }
 
+    public Long findPrimaryAccountIdByUser(long userId) {
+        List<Long> rows = jdbcTemplate.query(
+                """
+                        SELECT pa.account_id
+                        FROM portfolios pf
+                        JOIN portfolio_accounts pa ON pa.portfolio_id = pf.portfolio_id
+                        WHERE pf.user_id = ?
+                        ORDER BY pa.account_id
+                        LIMIT 1
+                        """,
+                (rs, rowNum) -> rs.getLong("account_id"),
+                userId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    public Long findOwnedAccountIdByUserAndAsset(long userId, long assetId) {
+        List<Long> rows = jdbcTemplate.query(
+                """
+                        SELECT p.account_id
+                        FROM portfolios pf
+                        JOIN portfolio_accounts pa ON pa.portfolio_id = pf.portfolio_id
+                        JOIN portfolio_positions p ON p.account_id = pa.account_id
+                        WHERE pf.user_id = ?
+                          AND p.asset_id = ?
+                        ORDER BY p.account_id
+                        LIMIT 1
+                        """,
+                (rs, rowNum) -> rs.getLong("account_id"),
+                userId,
+                assetId);
+        return rows.isEmpty() ? null : rows.get(0);
+    }
+
+    public void upsertPositionByAccount(long accountId, long assetId, BigDecimal quantity, BigDecimal avgCost) {
+        PositionState state = findPositionState(accountId, assetId);
+        upsertPosition(accountId, assetId, quantity, avgCost, state.realizedPnl());
+    }
+
     public List<Long> findAllAssetIds() {
         return jdbcTemplate.query("SELECT asset_id FROM assets WHERE is_active = 1 ORDER BY asset_id",
                 (rs, rowNum) -> rs.getLong("asset_id"));
