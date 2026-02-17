@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/models/dashboard_models.dart';
+import 'asset_detail_sheet.dart';
 import 'complementary_accent.dart';
 import '../home_providers.dart';
 
@@ -74,20 +75,20 @@ class _DashboardTabState extends ConsumerState<DashboardTab> {
       },
       child: ListView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 14, 16, 22),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 18),
         children: [
           _Header(now: DateTime.now()),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           _ActionBriefCard(
             dashboardAsync: dashboardAsync,
             advisorAsync: advisorAsync,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           _DashboardGroupSelector(
             selected: _group,
             onChanged: (group) => setState(() => _group = group),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           ..._buildGroupSections(
             group: _group,
             dashboardAsync: dashboardAsync,
@@ -111,86 +112,119 @@ class _DashboardTabState extends ConsumerState<DashboardTab> {
       case _DashboardGroup.status:
         return [
           const _GroupIntroCard(
-            title: '한눈에 보기',
-            description: '총자산과 보유자산, 기간 수익 흐름부터 빠르게 확인해요.',
+            title: '전체 요약',
             icon: Icons.space_dashboard_rounded,
             accent: Color(0xFF5CA8FF),
+            tooltip: '자산 현황을 빠르게 확인',
           ),
           const SizedBox(height: 10),
-          dashboardAsync.when(
-            data: (data) => _HeroCard(data: data),
-            loading: () => const _LoadingCard(height: 200),
-            error: (e, _) => _ErrorCard(message: e.toString()),
+          _SectionBlock(
+            title: '자산 현황',
+            tooltip: '핵심 지표를 한 번에 확인',
+            child: dashboardAsync.when(
+              data: (data) => _HeroCard(data: data),
+              loading: () => const _LoadingCard(height: 200),
+              error: (e, _) => _ErrorCard(message: e.toString()),
+            ),
           ),
-          const SizedBox(height: 12),
-          positionsAsync.when(
-            data: (positions) => _HoldingAssetCard(positions: positions),
-            loading: () => const _LoadingCard(height: 260),
-            error: (e, _) => _ErrorCard(message: e.toString()),
+          const SizedBox(height: 14),
+          _SectionBlock(
+            title: '보유 종목',
+            tooltip: '국내/해외 보유종목',
+            child: positionsAsync.when(
+              data: (positions) => _HoldingAssetCard(positions: positions),
+              loading: () => const _LoadingCard(height: 260),
+              error: (e, _) => _ErrorCard(message: e.toString()),
+            ),
           ),
-          const SizedBox(height: 12),
-          const _PortfolioSimulationCard(),
-          const SizedBox(height: 12),
-          watchlistSection,
+          const SizedBox(height: 14),
+          const _SectionBlock(
+            title: '수익 분석',
+            tooltip: '기간별 수익 시뮬레이션',
+            child: _PortfolioSimulationCard(),
+          ),
+          const SizedBox(height: 14),
+          _SectionBlock(
+            title: '관심종목 변동',
+            tooltip: '관심종목 등락 비교',
+            child: watchlistSection,
+          ),
         ];
       case _DashboardGroup.diagnosis:
         return [
           const _GroupIntroCard(
-            title: '리스크 진단',
-            description: '집중도와 변동성, 최대 낙폭을 기준으로 현재 상태를 읽어드려요.',
+            title: '위험 점검',
             icon: Icons.health_and_safety_rounded,
             accent: Color(0xFFFFC56B),
+            tooltip: '위험 신호와 지표 확인',
           ),
           const SizedBox(height: 10),
-          positionsAsync.when(
-            data: (positions) => dashboardAsync.when(
-              data: (dashboard) =>
-                  _InsightCard(positions: positions, dashboard: dashboard),
+          _ExpandablePanel(
+            title: '위험도 요약',
+            initiallyExpanded: true,
+            child: positionsAsync.when(
+              data: (positions) => dashboardAsync.when(
+                data: (dashboard) =>
+                    _InsightCard(positions: positions, dashboard: dashboard),
+                loading: () => const _LoadingCard(height: 190),
+                error: (e, _) => _ErrorCard(message: e.toString()),
+              ),
               loading: () => const _LoadingCard(height: 190),
               error: (e, _) => _ErrorCard(message: e.toString()),
             ),
-            loading: () => const _LoadingCard(height: 190),
-            error: (e, _) => _ErrorCard(message: e.toString()),
           ),
-          const SizedBox(height: 12),
-          advisorAsync.when(
-            data: (advice) => _AdvisorSummaryCard(advice: advice),
-            loading: () => const _LoadingCard(height: 210),
-            error: (e, _) => _ErrorCard(message: e.toString()),
+          const SizedBox(height: 10),
+          _ExpandablePanel(
+            title: '핵심 지표',
+            child: advisorAsync.when(
+              data: (advice) => _AdvisorSummaryCard(advice: advice),
+              loading: () => const _LoadingCard(height: 210),
+              error: (e, _) => _ErrorCard(message: e.toString()),
+            ),
           ),
-          const SizedBox(height: 12),
-          positionsAsync.when(
-            data: (positions) => advisorAsync.when(
-              data: (advice) => _AdviceScenarioPreviewCard(
-                  advice: advice, positions: positions),
+          const SizedBox(height: 10),
+          _ExpandablePanel(
+            title: '시나리오 비교',
+            child: positionsAsync.when(
+              data: (positions) => advisorAsync.when(
+                data: (advice) => _AdviceScenarioPreviewCard(
+                    advice: advice, positions: positions),
+                loading: () => const _LoadingCard(height: 280),
+                error: (e, _) => _ErrorCard(message: e.toString()),
+              ),
               loading: () => const _LoadingCard(height: 280),
               error: (e, _) => _ErrorCard(message: e.toString()),
             ),
-            loading: () => const _LoadingCard(height: 280),
-            error: (e, _) => _ErrorCard(message: e.toString()),
           ),
         ];
       case _DashboardGroup.recommendation:
         return [
           const _GroupIntroCard(
-            title: '실행 가이드',
-            description: '리밸런싱과 ETF 대안을 비용/우선순위 중심으로 정리해드려요.',
+            title: '실행 제안',
             icon: Icons.bolt_rounded,
             accent: Color(0xFF65D6A5),
+            tooltip: '실행 가능한 조정안 확인',
           ),
           const SizedBox(height: 10),
-          advisorAsync.when(
-            data: (advice) =>
-                _RebalancingActionsCard(actions: advice.rebalancingActions),
-            loading: () => const _LoadingCard(height: 220),
-            error: (e, _) => _ErrorCard(message: e.toString()),
+          _ExpandablePanel(
+            title: '리밸런싱 제안',
+            initiallyExpanded: true,
+            child: advisorAsync.when(
+              data: (advice) =>
+                  _RebalancingActionsCard(actions: advice.rebalancingActions),
+              loading: () => const _LoadingCard(height: 220),
+              error: (e, _) => _ErrorCard(message: e.toString()),
+            ),
           ),
-          const SizedBox(height: 12),
-          advisorAsync.when(
-            data: (advice) => _EtfRecommendationCard(
-                recommendations: advice.etfRecommendations),
-            loading: () => const _LoadingCard(height: 210),
-            error: (e, _) => _ErrorCard(message: e.toString()),
+          const SizedBox(height: 10),
+          _ExpandablePanel(
+            title: 'ETF 교체 제안',
+            child: advisorAsync.when(
+              data: (advice) => _EtfRecommendationCard(
+                  recommendations: advice.etfRecommendations),
+              loading: () => const _LoadingCard(height: 210),
+              error: (e, _) => _ErrorCard(message: e.toString()),
+            ),
           ),
         ];
     }
@@ -210,22 +244,22 @@ class _DashboardGroupSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final background =
-        isDark ? const Color(0xFF101B2F) : const Color(0xFFF4F8FF);
-    final border = isDark ? const Color(0xFF233754) : const Color(0xFFD4DFEF);
+        isDark ? const Color(0xFF0D182A) : const Color(0xFFF4F8FF);
+    final border = isDark ? const Color(0xFF2A3C59) : const Color(0xFFD4DFEF);
     final selectedBg =
-        isDark ? const Color(0x2A4C8DFF) : const Color(0x225E7FAF);
+        isDark ? const Color(0x255A7FB8) : const Color(0x225E7FAF);
     final selectedBorder =
-        isDark ? const Color(0xFF3A5F99) : const Color(0xFF90A7CA);
+        isDark ? const Color(0xFF4B648A) : const Color(0xFF90A7CA);
+    final itemBg = isDark ? const Color(0xFF122037) : const Color(0xFFF1F6FE);
+    final itemBorder =
+        isDark ? const Color(0xFF233653) : const Color(0xFFD4DFEF);
     final selectedText =
         isDark ? const Color(0xFFE8EEFF) : const Color(0xFF2B4369);
     final text = isDark ? const Color(0xFF90A0BE) : const Color(0xFF62738F);
-    final subtleText =
-        isDark ? const Color(0xFF6F83A8) : const Color(0xFF7687A2);
 
     Widget item({
       required _DashboardGroup value,
       required String label,
-      required String caption,
       required IconData icon,
     }) {
       final active = selected == value;
@@ -235,41 +269,28 @@ class _DashboardGroupSelector extends StatelessWidget {
           onTap: () => onChanged(value),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 140),
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
             decoration: BoxDecoration(
-              color: active ? selectedBg : Colors.transparent,
+              color: active ? selectedBg : itemBg,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                  color: active ? selectedBorder : Colors.transparent),
+              border: Border.all(color: active ? selectedBorder : itemBorder),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
                   icon,
-                  size: 14,
+                  size: 15,
                   color: active ? selectedText : text,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(width: 6),
                 Text(
                   label,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: active ? selectedText : text,
-                    fontSize: 13,
+                    fontSize: 13.5,
                     fontWeight: active ? FontWeight.w800 : FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  caption,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: active ? selectedText.withOpacity(0.86) : subtleText,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],
@@ -291,21 +312,18 @@ class _DashboardGroupSelector extends StatelessWidget {
           item(
             value: _DashboardGroup.status,
             label: '한눈에',
-            caption: '요약',
             icon: Icons.stacked_line_chart_rounded,
           ),
           const SizedBox(width: 6),
           item(
             value: _DashboardGroup.diagnosis,
             label: '리스크',
-            caption: '진단',
             icon: Icons.monitor_heart_rounded,
           ),
           const SizedBox(width: 6),
           item(
             value: _DashboardGroup.recommendation,
             label: '실행',
-            caption: '추천',
             icon: Icons.auto_awesome_rounded,
           ),
         ],
@@ -328,8 +346,6 @@ class _ActionBriefCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor =
         isDark ? const Color(0xFFEAF1FF) : const Color(0xFF1A2A45);
-    final subtitleColor =
-        isDark ? const Color(0xFF9AA7C0) : const Color(0xFF5D6E89);
 
     final dashboard = dashboardAsync.valueOrNull;
     final advice = advisorAsync.valueOrNull;
@@ -339,10 +355,10 @@ class _ActionBriefCard extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF111E35) : const Color(0xFFF3F8FF),
-        borderRadius: BorderRadius.circular(14),
+        color: isDark ? const Color(0xFF0D182B) : const Color(0xFFF3F8FF),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isDark ? const Color(0xFF274065) : const Color(0xFFD2DEEE),
+          color: isDark ? const Color(0xFF2C3F5D) : const Color(0xFFD2DEEE),
         ),
       ),
       child: Column(
@@ -351,7 +367,7 @@ class _ActionBriefCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
                 decoration: BoxDecoration(
                   color: isDark
                       ? const Color(0x224C8DFF)
@@ -369,19 +385,10 @@ class _ActionBriefCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               const Icon(Icons.bolt_rounded,
-                  size: 16, color: Color(0xFFFFC56B)),
+                  size: 14, color: Color(0xFFFFC56B)),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            '핵심 액션만 짧게 정리해뒀어요.',
-            style: TextStyle(
-              color: subtitleColor,
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-            ),
-          ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 7),
           ...briefLines.map((line) => _BriefLine(text: line)),
         ],
       ),
@@ -428,7 +435,7 @@ class _BriefLine extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 5),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -445,7 +452,8 @@ class _BriefLine extends StatelessWidget {
                 color:
                     isDark ? const Color(0xFFDDE7FF) : const Color(0xFF273956),
                 fontWeight: FontWeight.w700,
-                height: 1.35,
+                height: 1.34,
+                fontSize: 14,
               ),
             ),
           ),
@@ -458,65 +466,235 @@ class _BriefLine extends StatelessWidget {
 class _GroupIntroCard extends StatelessWidget {
   const _GroupIntroCard({
     required this.title,
-    required this.description,
     required this.icon,
     required this.accent,
+    this.tooltip,
   });
 
   final String title;
-  final String description;
   final IconData icon;
   final Color accent;
+  final String? tooltip;
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor =
-        isDark ? const Color(0xFFE8EEFF) : const Color(0xFF1D2D4A);
-    final descColor =
-        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5E7291);
+        isDark ? const Color(0xFFDCE6F7) : const Color(0xFF1D2D4A);
+    final dividerColor =
+        isDark ? const Color(0xFF2B3E5B) : const Color(0xFFD4DFEF);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: accent),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  color: titleColor,
+                ),
+              ),
+            ),
+            if (tooltip != null && tooltip!.trim().isNotEmpty)
+              _InlineInfoIcon(message: tooltip!),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Divider(height: 1, thickness: 1, color: dividerColor),
+      ],
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel({
+    required this.title,
+    this.tooltip,
+  });
+
+  final String title;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor =
+        isDark ? const Color(0xFFDCE6F7) : const Color(0xFF213551);
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              color: titleColor,
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        if (tooltip != null && tooltip!.trim().isNotEmpty)
+          _InlineInfoIcon(message: tooltip!),
+      ],
+    );
+  }
+}
+
+class _SectionBlock extends StatelessWidget {
+  const _SectionBlock({
+    required this.title,
+    required this.child,
+    this.tooltip,
+  });
+
+  final String title;
+  final Widget child;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bgColor = isDark ? const Color(0xFF0B1526) : const Color(0xFFF6FAFF);
+    final borderColor =
+        isDark ? const Color(0xFF253752) : const Color(0xFFD2DEEE);
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF101A2E) : const Color(0xFFF7FAFF),
+        color: bgColor,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark ? const Color(0xFF263A5C) : const Color(0xFFD4DFEF),
-        ),
+        border: Border.all(color: borderColor),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: accent.withOpacity(0.18),
-              borderRadius: BorderRadius.circular(8),
+          _SectionLabel(title: title, tooltip: tooltip),
+          const SizedBox(height: 8),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineInfoIcon extends StatelessWidget {
+  const _InlineInfoIcon({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Tooltip(
+      message: message,
+      triggerMode: TooltipTriggerMode.tap,
+      child: Icon(
+        Icons.info_outline_rounded,
+        size: 15,
+        color: isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5E7291),
+      ),
+    );
+  }
+}
+
+class _ExpandablePanel extends StatefulWidget {
+  const _ExpandablePanel({
+    required this.title,
+    required this.child,
+    this.initiallyExpanded = false,
+  });
+
+  final String title;
+  final Widget child;
+  final bool initiallyExpanded;
+
+  @override
+  State<_ExpandablePanel> createState() => _ExpandablePanelState();
+}
+
+class _ExpandablePanelState extends State<_ExpandablePanel> {
+  late bool _expanded;
+
+  @override
+  void initState() {
+    super.initState();
+    _expanded = widget.initiallyExpanded;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor =
+        isDark ? const Color(0xFFDCE6F7) : const Color(0xFF213551);
+    final borderColor =
+        isDark ? const Color(0xFF2B3E5B) : const Color(0xFFD4DFEF);
+    final bgColor = isDark ? const Color(0xFF0D1727) : const Color(0xFFF8FBFF);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: borderColor),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: TextStyle(
+                        color: titleColor,
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    _expanded ? '접기' : '펼치기',
+                    style: TextStyle(
+                      color: isDark
+                          ? const Color(0xFF8EA0C1)
+                          : const Color(0xFF5E7291),
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    size: 19,
+                    color: isDark
+                        ? const Color(0xFF9DB0D0)
+                        : const Color(0xFF5E7291),
+                  ),
+                ],
+              ),
             ),
-            child: Icon(icon, size: 16, color: accent),
           ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: titleColor,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  description,
-                  style: TextStyle(
-                    color: descColor,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 170),
+            firstCurve: Curves.easeOutCubic,
+            secondCurve: Curves.easeOutCubic,
+            crossFadeState: _expanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: widget.child,
             ),
           ),
         ],
@@ -545,9 +723,10 @@ class _Header extends ConsumerWidget {
               const Text(
                 '내 자산 대시보드',
                 style: TextStyle(
-                    fontSize: 28,
+                    fontSize: 26,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: -0.8),
+                    letterSpacing: -0.6,
+                    height: 1.05),
               ),
               const SizedBox(height: 3),
               Text(
@@ -557,6 +736,7 @@ class _Header extends ConsumerWidget {
                       ? const Color(0xFF9AA7C0)
                       : const Color(0xFF5F6E88),
                   fontWeight: FontWeight.w600,
+                  fontSize: 13,
                 ),
               ),
             ],
@@ -592,8 +772,8 @@ class _ThemeModeMiniToggle extends ConsumerWidget {
             );
       },
       child: Container(
-        width: 34,
-        height: 34,
+        width: 32,
+        height: 32,
         decoration: BoxDecoration(
           color: isDark ? const Color(0xFF13233F) : const Color(0xFFE9F0FA),
           borderRadius: BorderRadius.circular(999),
@@ -603,7 +783,7 @@ class _ThemeModeMiniToggle extends ConsumerWidget {
         ),
         child: Icon(
           isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
-          size: 17,
+          size: 15,
           color: isDark ? const Color(0xFFEAF1FF) : const Color(0xFF2F4E79),
         ),
       ),
@@ -620,7 +800,7 @@ class _HeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final won =
-        NumberFormat.currency(locale: 'ko_KR', symbol: '₩', decimalDigits: 0);
+        NumberFormat.currency(locale: 'ko_KR', symbol: '₩ ', decimalDigits: 0);
     final profit = data.dailyPnl >= 0;
     final pnlColor = profit ? const Color(0xFFFF5D73) : const Color(0xFF5CA8FF);
     final titleColor =
@@ -629,27 +809,13 @@ class _HeroCard extends StatelessWidget {
         isDark ? const Color(0xFF9AA7C0) : const Color(0xFF5B6C86);
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: isDark
-              ? const [Color(0xFF172746), Color(0xFF101D35), Color(0xFF0D172A)]
-              : const [Color(0xFFF6FAFF), Color(0xFFECF3FC), Color(0xFFE4EDF8)],
-        ),
+        borderRadius: BorderRadius.circular(18),
+        color: isDark ? const Color(0xFF111A2A) : const Color(0xFFF2F5FA),
         border: Border.all(
-          color: isDark ? const Color(0xFF2D436C) : const Color(0xFFCBD7EA),
+          color: isDark ? const Color(0xFF2B3951) : const Color(0xFFD2DBE8),
         ),
-        boxShadow: [
-          BoxShadow(
-              color:
-                  (isDark ? const Color(0x664C8DFF) : const Color(0x445E7FAF))
-                      .withOpacity(0.2),
-              blurRadius: 24,
-              offset: const Offset(0, 8)),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -657,56 +823,77 @@ class _HeroCard extends StatelessWidget {
           Row(
             children: [
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
                     color: isDark
-                        ? const Color(0x224C8DFF)
-                        : const Color(0x335E7FAF),
+                        ? const Color(0xFF1B2A3F)
+                        : const Color(0xFFE5ECF7),
                     borderRadius: BorderRadius.circular(999)),
                 child: Text(
                   '총 자산',
-                  style:
-                      TextStyle(fontWeight: FontWeight.w800, color: titleColor),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: titleColor,
+                    fontSize: 12,
+                  ),
                 ),
               ),
               const Spacer(),
-              Icon(Icons.insights_rounded, color: pnlColor, size: 20),
+              Icon(Icons.insights_rounded, color: pnlColor, size: 18),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(won.format(data.portfolioValue),
-              style: TextStyle(
-                  fontSize: 33,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1,
-                  color: titleColor)),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: Text(
+                  won.format(data.portfolioValue),
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.7,
+                    height: 1.0,
+                    color: titleColor,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _InlineRateBadge(rate: data.dailyPnlRate),
+            ],
+          ),
+          const SizedBox(height: 7),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             decoration: BoxDecoration(
                 color:
-                    isDark ? const Color(0xFF0F1B31) : const Color(0xFFF7FBFF),
-                borderRadius: BorderRadius.circular(12),
+                    isDark ? const Color(0xFF0D1624) : const Color(0xFFF7FAFF),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(
                     color: isDark
-                        ? const Color(0xFF2A3B5A)
+                        ? const Color(0xFF23334C)
                         : const Color(0xFFD1DDEE))),
             child: Row(
               children: [
                 Text('당일 평가손익',
                     style: TextStyle(
-                        color: subtleColor, fontWeight: FontWeight.w700)),
+                      color: subtleColor,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                    )),
                 const Spacer(),
                 Text(
-                  '${profit ? '+' : ''}${won.format(data.dailyPnl)} (${profit ? '+' : ''}${data.dailyPnlRate.toStringAsFixed(2)}%)',
-                  style:
-                      TextStyle(color: pnlColor, fontWeight: FontWeight.w900),
+                  '${profit ? '+' : ''}${won.format(data.dailyPnl)}',
+                  style: TextStyle(
+                    color: pnlColor,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 15,
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(child: _kpi('관심종목', '${data.watchlistCount}개', isDark)),
@@ -721,21 +908,76 @@ class _HeroCard extends StatelessWidget {
   }
 
   Widget _kpi(String label, String value, bool isDark) {
+    final labelColor =
+        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF4B6682);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF101D33) : const Color(0xFFF7FBFF),
-          borderRadius: BorderRadius.circular(11),
+          color: isDark ? const Color(0xFF0D1624) : const Color(0xFFF7FAFF),
+          borderRadius: BorderRadius.circular(10),
           border: Border.all(
               color:
-                  isDark ? const Color(0xFF273A58) : const Color(0xFFD1DDEE))),
+                  isDark ? const Color(0xFF23334C) : const Color(0xFFD1DDEE))),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
-              style: const TextStyle(color: Color(0xFF8EA0C1), fontSize: 12)),
-          const SizedBox(height: 3),
+          Text(label, style: TextStyle(color: labelColor, fontSize: 12)),
+          const SizedBox(height: 2),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w800)),
+        ],
+      ),
+    );
+  }
+}
+
+class _InlineRateBadge extends StatelessWidget {
+  const _InlineRateBadge({required this.rate, this.compact = false});
+
+  final double rate;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isUp = rate > 0;
+    final isDown = rate < 0;
+    final accent = isUp
+        ? const Color(0xFFFF6B81)
+        : isDown
+            ? const Color(0xFF5CA8FF)
+            : const Color(0xFF95A3BE);
+    final bg = isDark
+        ? accent.withValues(alpha: 0.17)
+        : accent.withValues(alpha: 0.13);
+    final sign = isUp ? '+' : '';
+    final icon = isUp
+        ? Icons.arrow_drop_up_rounded
+        : isDown
+            ? Icons.arrow_drop_down_rounded
+            : Icons.remove_rounded;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+          horizontal: compact ? 7 : 8, vertical: compact ? 3 : 4),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: accent.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: compact ? 14 : 15, color: accent),
+          const SizedBox(width: 1),
+          Text(
+            '$sign${rate.toStringAsFixed(1)}%',
+            style: TextStyle(
+              color: accent,
+              fontSize: compact ? 12 : 13,
+              fontWeight: FontWeight.w900,
+              letterSpacing: -0.1,
+            ),
+          ),
         ],
       ),
     );
@@ -821,6 +1063,13 @@ class _TickerComparisonCardState extends State<_TickerComparisonCard> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final guideText =
+        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF4F6A86);
+    final selectedBoxBg =
+        isDark ? const Color(0xFF14233E) : const Color(0xFFEFF5FF);
+    final selectedBoxBorder =
+        isDark ? const Color(0xFF2A3E63) : const Color(0xFFC7D9F2);
     final sortedPoints = [...widget.points]
       ..sort((a, b) => b.changeRate.abs().compareTo(a.changeRate.abs()));
     final points = sortedPoints.take(_activePointCount()).toList();
@@ -842,7 +1091,7 @@ class _TickerComparisonCardState extends State<_TickerComparisonCard> {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -856,9 +1105,9 @@ class _TickerComparisonCardState extends State<_TickerComparisonCard> {
               ],
             ),
             const SizedBox(height: 4),
-            const Text('보조 지표예요. 세로축은 당일 등락률(%)이고, 가로축은 종목명(티커) 기준이에요.',
-                style: TextStyle(color: Color(0xFF8EA0C1), fontSize: 12)),
-            const SizedBox(height: 10),
+            Text('보조 지표예요. 세로축은 당일 등락률(%)이고, 가로축은 종목명(티커) 기준이에요.',
+                style: TextStyle(color: guideText, fontSize: 12)),
+            const SizedBox(height: 8),
             SizedBox(
               height: 172,
               child: LayoutBuilder(
@@ -1044,15 +1293,14 @@ class _TickerComparisonCardState extends State<_TickerComparisonCard> {
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
-                  color: const Color(0xFF14233E),
+                  color: selectedBoxBg,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF2A3E63))),
+                  border: Border.all(color: selectedBoxBorder)),
               child: selected == null
-                  ? const Text(
+                  ? Text(
                       '차트 위에 마우스를 올리면 종목별 당일 등락률을 확인할 수 있습니다.',
                       style: TextStyle(
-                          color: Color(0xFF8EA0C1),
-                          fontWeight: FontWeight.w700),
+                          color: guideText, fontWeight: FontWeight.w700),
                     )
                   : Text(
                       '선택 종목: ${selected.assetName} (${selected.ticker}) / 당일 등락률 ${selected.changeRate >= 0 ? '+' : ''}${selected.changeRate.toStringAsFixed(2)}%',
@@ -1140,15 +1388,7 @@ class _InsightCard extends StatelessWidget {
         isDark ? const Color(0xFF2A3E63) : const Color(0xFFD0E4DE);
     final labelText =
         isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5D7A7E);
-    final bodyText = isDark ? const Color(0xFFE8EEFF) : const Color(0xFF1E3742);
     final hintText = isDark ? const Color(0xFFDCE5F8) : const Color(0xFF355056);
-    final sectionTitle =
-        isDark ? const Color(0xFFF2F6FF) : const Color(0xFF1E3742);
-    final badgeBg = isDark ? const Color(0x22FFC56B) : const Color(0x26F3B54E);
-    final badgeBorder =
-        isDark ? const Color(0x66FFC56B) : const Color(0x66C9892A);
-    final badgeText =
-        isDark ? const Color(0xFFFFDFA2) : const Color(0xFF9A6008);
 
     final total = positions.fold<double>(0, (sum, p) => sum + p.valuation);
     final sorted = [...positions]
@@ -1165,13 +1405,13 @@ class _InsightCard extends StatelessWidget {
 
     final action1 = top == null
         ? '보유 종목이 없습니다.'
-        : '최대 비중 종목 ${top.assetName} ${topRatio.toStringAsFixed(1)}%: 목표 비중을 정해 분할 조정';
+        : '최대 비중 ${top.assetName} ${topRatio.toStringAsFixed(1)}%';
     final action2 = dashboard.unreadAlertCount > 0
-        ? '미확인 알림 ${dashboard.unreadAlertCount}건 우선 처리'
-        : '미확인 알림 없음, 상태 양호';
+        ? '미확인 알림 ${dashboard.unreadAlertCount}건 확인'
+        : '미확인 알림 없음';
     final action3 = dashboard.dailyPnlRate.abs() >= 2
-        ? '일중 변동폭 ${dashboard.dailyPnlRate.toStringAsFixed(2)}%: 익절/손절 기준 재점검'
-        : '변동폭 안정 구간, 비중 리밸런싱 위주 점검';
+        ? '당일 변동 ${dashboard.dailyPnlRate.toStringAsFixed(2)}% 기준 점검'
+        : '변동 안정 구간';
 
     return Card(
       child: Padding(
@@ -1179,7 +1419,7 @@ class _InsightCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('포트폴리오 리스크 진단',
+            const Text('리스크 요약',
                 style: TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
             const SizedBox(height: 10),
             Row(
@@ -1202,48 +1442,10 @@ class _InsightCard extends StatelessWidget {
                         labelText: labelText)),
               ],
             ),
-            const SizedBox(height: 8),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                  color: tileBg,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: tileBorder)),
-              child: Text('설명: 최대 비중이 45%를 넘으면 포트폴리오 변동성이 급격히 커질 수 있습니다.',
-                  style:
-                      TextStyle(color: bodyText, fontWeight: FontWeight.w700)),
-            ),
             const SizedBox(height: 10),
-            Row(
-              children: [
-                const Icon(Icons.bolt_rounded,
-                    color: Color(0xFFFFC56B), size: 18),
-                const SizedBox(width: 6),
-                Text('추천 액션',
-                    style: TextStyle(
-                        fontWeight: FontWeight.w900, color: sectionTitle)),
-                const SizedBox(width: 8),
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: badgeBg,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: badgeBorder),
-                  ),
-                  child: Text(
-                    '우선순위',
-                    style: TextStyle(
-                      color: badgeText,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
+            const Text('권장 액션',
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14)),
+            const SizedBox(height: 6),
             _action(action1, priority: 0, isDark: isDark, bodyText: hintText),
             _action(action2, priority: 1, isDark: isDark, bodyText: hintText),
             _action(action3, priority: 2, isDark: isDark, bodyText: hintText),
@@ -1293,24 +1495,14 @@ class _InsightCard extends StatelessWidget {
       1 => Icons.notifications_active_rounded,
       _ => Icons.check_circle_outline_rounded,
     };
-    final label = switch (priority) {
-      0 => '가장 먼저',
-      1 => '다음으로',
-      _ => '유지 점검',
-    };
-
     return Container(
       width: double.infinity,
       margin: const EdgeInsets.only(bottom: 7),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       decoration: BoxDecoration(
+        color: accent.withOpacity(isDark ? 0.12 : 0.08),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: accent.withOpacity(isDark ? 0.45 : 0.4)),
-        gradient: LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [accent.withOpacity(isDark ? 0.16 : 0.1), Colors.transparent],
-        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1326,23 +1518,9 @@ class _InsightCard extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: accent,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  text,
-                  style: TextStyle(color: bodyText, height: 1.35),
-                ),
-              ],
+            child: Text(
+              text,
+              style: TextStyle(color: bodyText, height: 1.35),
             ),
           ),
         ],
@@ -1361,8 +1539,6 @@ class _AdvisorSummaryCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleText =
         isDark ? const Color(0xFFE8EEFF) : const Color(0xFF1E3742);
-    final summaryText =
-        isDark ? const Color(0xFF9AA7C0) : const Color(0xFF5D7A7E);
     final tileBg = isDark ? const Color(0xFF12213A) : const Color(0xFFF7FCFA);
     final tileBorder =
         isDark ? const Color(0xFF2A3E63) : const Color(0xFFD0E4DE);
@@ -1393,7 +1569,7 @@ class _AdvisorSummaryCard extends StatelessWidget {
             Row(
               children: [
                 const Expanded(
-                  child: Text('AI 포트폴리오 진단',
+                  child: Text('진단 요약',
                       style:
                           TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
                 ),
@@ -1415,16 +1591,13 @@ class _AdvisorSummaryCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              advice.insight.headline,
-              style: TextStyle(fontWeight: FontWeight.w800, color: titleText),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              advice.insight.summary,
-              style: TextStyle(color: summaryText, height: 1.35),
-            ),
+            if (advice.insight.headline.trim().isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(
+                advice.insight.headline,
+                style: TextStyle(fontWeight: FontWeight.w800, color: titleText),
+              ),
+            ],
             const SizedBox(height: 10),
             Row(
               children: [
@@ -1483,64 +1656,18 @@ class _AdvisorSummaryCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: isStableMode
-                    ? const Color(0x1A65D6A5)
-                    : const Color(0x1A5CA8FF),
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                    color: isStableMode
-                        ? const Color(0x5565D6A5)
-                        : const Color(0x553E6CB0)),
-              ),
-              child: Text(
-                isStableMode
-                    ? '지금은 구조 변경보다 운영 전략 중심이 더 효율적이에요.'
-                    : '지금은 비중 조정/리스크 완화 액션을 먼저 보는 게 좋아요.',
-                style: TextStyle(
-                  color: isDark
-                      ? (isStableMode
-                          ? const Color(0xFFB9F5DD)
-                          : const Color(0xFFBAD2FF))
-                      : const Color(0xFF355056),
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-            const SizedBox(height: 10),
             Text(
               isStableMode ? '운영 전략' : '우선 액션',
               style: TextStyle(fontWeight: FontWeight.w800, color: sectionText),
             ),
             const SizedBox(height: 6),
-            ...advice.insight.keyPoints.take(4).toList().asMap().entries.map(
+            ...advice.insight.keyPoints.take(3).toList().asMap().entries.map(
                   (entry) => _bullet(entry.value,
                       order: entry.key,
                       isStableMode: isStableMode,
                       isDark: isDark,
                       bodyText: bulletBody),
                 ),
-            if (advice.insight.cautions.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                decoration: BoxDecoration(
-                  color: tileBg,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: tileBorder),
-                ),
-                child: Text(
-                  advice.insight.cautions.first,
-                  style:
-                      TextStyle(color: summaryText, height: 1.35, fontSize: 12),
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -1609,17 +1736,10 @@ class _AdvisorSummaryCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 7),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
+        color: accent[idx].withOpacity(isDark ? 0.12 : 0.08),
         borderRadius: BorderRadius.circular(10),
         border:
             Border.all(color: accent[idx].withOpacity(isDark ? 0.44 : 0.36)),
-        gradient: LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [
-            accent[idx].withOpacity(isDark ? 0.16 : 0.1),
-            Colors.transparent
-          ],
-        ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1756,14 +1876,63 @@ class _AdviceScenarioPreviewCardState
     }
   }
 
+  void _openScenarioHoldingSheet(_ScenarioHoldingPreview item) {
+    final won =
+        NumberFormat.currency(locale: 'ko_KR', symbol: '₩ ', decimalDigits: 0);
+    final delta = item.afterValue - item.beforeValue;
+    final deltaColor =
+        delta >= 0 ? const Color(0xFFFF6B81) : const Color(0xFF5CA8FF);
+    showAssetDetailSheet(
+      context,
+      data: AssetDetailSheetData(
+        assetName: item.assetName,
+        symbol: item.symbol,
+        note: '시나리오 반영 전/후 보유금액 비교',
+        fields: [
+          AssetDetailField(
+              label: '현재 평가금액', value: won.format(item.beforeValue)),
+          AssetDetailField(
+              label: '반영 후 평가금액', value: won.format(item.afterValue)),
+          AssetDetailField(
+            label: '변동 금액',
+            value: '${delta >= 0 ? '+' : '-'}${won.format(delta.abs())}',
+            valueColor: deltaColor,
+          ),
+        ],
+      ),
+    );
+  }
+
   double _scenarioCardWidth(double maxWidth) {
-    if (maxWidth >= 720) {
+    if (maxWidth >= 900) {
       return (maxWidth - 16) / 3;
     }
-    if (maxWidth >= 460) {
+    if (maxWidth >= 620) {
       return (maxWidth - 8) / 2;
     }
     return maxWidth;
+  }
+
+  bool _useCompactScenarioSelector(double maxWidth) => maxWidth < 620;
+
+  double _metricTileWidth(double maxWidth) {
+    if (maxWidth >= 900) {
+      return (maxWidth - 16) / 3;
+    }
+    if (maxWidth >= 250) {
+      return (maxWidth - 8) / 2;
+    }
+    return maxWidth;
+  }
+
+  String _scenarioCardLabel(_AdviceScenarioProjection projection,
+      {required bool compact}) {
+    if (!compact) return projection.label;
+    return switch (projection.type) {
+      _AdviceScenarioType.rebalancing => '리밸런싱',
+      _AdviceScenarioType.etf => 'ETF',
+      _AdviceScenarioType.combined => '종합',
+    };
   }
 
   @override
@@ -1796,8 +1965,6 @@ class _AdviceScenarioPreviewCardState
         activeScenario == null ? null : projections[activeScenario];
     final projected = activeProjection?.metrics ?? base;
     final projectionTitle = activeProjection?.label ?? '현재 포트폴리오 진단';
-    final projectionSummary = activeProjection?.summary ??
-        '카드에 마우스를 올리거나 탭하면 시나리오별 변화값을 미리 확인할 수 있습니다.';
     final actionBuyAmount = widget.advice.rebalancingActions
         .where((action) => action.action == 'BUY')
         .fold<double>(0, (sum, action) => sum + action.suggestedAmount);
@@ -1863,18 +2030,22 @@ class _AdviceScenarioPreviewCardState
                   ),
               ],
             ),
-            const SizedBox(height: 4),
-            ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 34),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 160),
-                child: Text(
-                  projectionSummary,
-                  key: ValueKey(projectionSummary),
-                  style:
-                      TextStyle(color: mutedText, fontSize: 12, height: 1.35),
-                ),
-              ),
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Text('시나리오 선택',
+                    style: TextStyle(
+                        color: mutedText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700)),
+                const Spacer(),
+                if (activeProjection != null)
+                  Text(activeProjection.label,
+                      style: TextStyle(
+                          color: activeProjection.accent,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800)),
+              ],
             ),
             const SizedBox(height: 8),
             Container(
@@ -1926,82 +2097,103 @@ class _AdviceScenarioPreviewCardState
             const SizedBox(height: 10),
             LayoutBuilder(
               builder: (context, constraints) {
+                final compactSelector =
+                    _useCompactScenarioSelector(constraints.maxWidth);
+                Widget scenarioCard(_AdviceScenarioProjection projection,
+                    {required bool compact}) {
+                  final active = activeScenario == projection.type;
+                  final pinned = _pinnedScenario == projection.type;
+                  return MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    onEnter: (_) => _onEnterScenario(projection.type),
+                    onExit: (_) => _onExitScenario(projection.type),
+                    child: GestureDetector(
+                      onTap: () => _togglePinnedScenario(projection.type),
+                      behavior: HitTestBehavior.opaque,
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        curve: Curves.easeOutCubic,
+                        padding: EdgeInsets.symmetric(
+                            horizontal: compact ? 7 : 10,
+                            vertical: compact ? 7 : 9),
+                        decoration: BoxDecoration(
+                          color: active ? panelActiveBg : panelInnerBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: active
+                                ? projection.accent.withOpacity(0.86)
+                                : panelBorder,
+                            width: 1,
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    _scenarioCardLabel(projection,
+                                        compact: compact),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: active ? titleText : bodyText,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: compact ? 11.5 : 13,
+                                      height: compact ? 1.1 : 1.2,
+                                    ),
+                                  ),
+                                ),
+                                if (pinned)
+                                  Icon(Icons.push_pin_rounded,
+                                      size: compact ? 12 : 14,
+                                      color: const Color(0xFF74A9C0)),
+                              ],
+                            ),
+                            if (!compact) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                projection.badge,
+                                style: TextStyle(
+                                    color: projection.accent,
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 11),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                if (compactSelector) {
+                  return Row(
+                    children: [
+                      for (int i = 0; i < orderedProjections.length; i++) ...[
+                        Expanded(
+                          child: scenarioCard(orderedProjections[i],
+                              compact: true),
+                        ),
+                        if (i < orderedProjections.length - 1)
+                          const SizedBox(width: 6),
+                      ],
+                    ],
+                  );
+                }
+
                 final cardWidth = _scenarioCardWidth(constraints.maxWidth);
                 return Wrap(
                   spacing: 8,
                   runSpacing: 8,
-                  children: orderedProjections.map((projection) {
-                    final active = activeScenario == projection.type;
-                    final pinned = _pinnedScenario == projection.type;
-                    return SizedBox(
-                      width: cardWidth,
-                      child: MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        onEnter: (_) => _onEnterScenario(projection.type),
-                        onExit: (_) => _onExitScenario(projection.type),
-                        child: GestureDetector(
-                          onTap: () => _togglePinnedScenario(projection.type),
-                          behavior: HitTestBehavior.opaque,
-                          child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 180),
-                            curve: Curves.easeOutCubic,
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 9),
-                            decoration: BoxDecoration(
-                              color: active ? panelActiveBg : panelInnerBg,
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: active
-                                    ? projection.accent.withOpacity(0.86)
-                                    : panelBorder,
-                                width: 1,
-                              ),
-                              boxShadow: active
-                                  ? [
-                                      BoxShadow(
-                                        color:
-                                            projection.accent.withOpacity(0.18),
-                                        blurRadius: 14,
-                                        offset: const Offset(0, 4),
-                                      ),
-                                    ]
-                                  : null,
-                            ),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        projection.label,
-                                        style: TextStyle(
-                                          color: active ? titleText : bodyText,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 13,
-                                        ),
-                                      ),
-                                    ),
-                                    if (pinned)
-                                      const Icon(Icons.push_pin_rounded,
-                                          size: 14, color: Color(0xFF74A9C0)),
-                                  ],
-                                ),
-                                const SizedBox(height: 3),
-                                Text(
-                                  projection.badge,
-                                  style: TextStyle(
-                                      color: projection.accent,
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 11),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                  children: [
+                    for (final projection in orderedProjections)
+                      SizedBox(
+                        width: cardWidth,
+                        child: scenarioCard(projection, compact: false),
                       ),
-                    );
-                  }).toList(),
+                  ],
                 );
               },
             ),
@@ -2043,59 +2235,79 @@ class _AdviceScenarioPreviewCardState
               ),
             ),
             const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _AdviceMetricDeltaTile(
-                  title: '기대 연수익률',
-                  before: base.expectedAnnualReturnPct,
-                  after: projected.expectedAnnualReturnPct,
-                  decimals: 2,
-                  unit: '%',
-                  helpText: '현재 구성으로 1년 운용 시 기대하는 평균 수익률이에요.',
-                ),
-                _AdviceMetricDeltaTile(
-                  title: '연환산 변동성',
-                  before: base.annualVolatilityPct,
-                  after: projected.annualVolatilityPct,
-                  decimals: 2,
-                  unit: '%',
-                  helpText: '수익률 변동 폭의 크기예요.',
-                ),
-                _AdviceMetricDeltaTile(
-                  title: '샤프지수',
-                  before: base.sharpeRatio,
-                  after: projected.sharpeRatio,
-                  decimals: 2,
-                  unit: '',
-                  helpText: '위험 대비 수익 효율을 보여줘요.',
-                ),
-                _AdviceMetricDeltaTile(
-                  title: '최대 낙폭(MDD)',
-                  before: base.maxDrawdownPct,
-                  after: projected.maxDrawdownPct,
-                  decimals: 2,
-                  unit: '%',
-                  helpText: '과거 가장 크게 빠졌던 구간의 하락률이에요.',
-                ),
-                _AdviceMetricDeltaTile(
-                  title: '최대 종목 비중',
-                  before: base.concentrationPct,
-                  after: projected.concentrationPct,
-                  decimals: 2,
-                  unit: '%',
-                  helpText: '포트에서 가장 큰 단일 종목 비중이에요.',
-                ),
-                _AdviceMetricDeltaTile(
-                  title: '분산투자 점수',
-                  before: base.diversificationScore,
-                  after: projected.diversificationScore,
-                  decimals: 1,
-                  unit: '점',
-                  helpText: '섹터/자산군이 얼마나 고르게 퍼졌는지 보여줘요.',
-                ),
-              ],
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final tileWidth = _metricTileWidth(constraints.maxWidth);
+                final compactTile = tileWidth < 180;
+                final tiles = [
+                  _AdviceMetricDeltaTile(
+                    title: '기대 연수익률',
+                    before: base.expectedAnnualReturnPct,
+                    after: projected.expectedAnnualReturnPct,
+                    decimals: 2,
+                    unit: '%',
+                    compact: compactTile,
+                    helpText: '현재 구성으로 1년 운용 시 기대하는 평균 수익률이에요.',
+                  ),
+                  _AdviceMetricDeltaTile(
+                    title: '연환산 변동성',
+                    before: base.annualVolatilityPct,
+                    after: projected.annualVolatilityPct,
+                    decimals: 2,
+                    unit: '%',
+                    compact: compactTile,
+                    helpText: '수익률 변동 폭의 크기예요.',
+                  ),
+                  _AdviceMetricDeltaTile(
+                    title: '샤프지수',
+                    before: base.sharpeRatio,
+                    after: projected.sharpeRatio,
+                    decimals: 2,
+                    unit: '',
+                    compact: compactTile,
+                    helpText: '위험 대비 수익 효율을 보여줘요.',
+                  ),
+                  _AdviceMetricDeltaTile(
+                    title: '최대 낙폭(MDD)',
+                    before: base.maxDrawdownPct,
+                    after: projected.maxDrawdownPct,
+                    decimals: 2,
+                    unit: '%',
+                    compact: compactTile,
+                    helpText: '과거 가장 크게 빠졌던 구간의 하락률이에요.',
+                  ),
+                  _AdviceMetricDeltaTile(
+                    title: '최대 종목 비중',
+                    before: base.concentrationPct,
+                    after: projected.concentrationPct,
+                    decimals: 2,
+                    unit: '%',
+                    compact: compactTile,
+                    helpText: '포트에서 가장 큰 단일 종목 비중이에요.',
+                  ),
+                  _AdviceMetricDeltaTile(
+                    title: '분산투자 점수',
+                    before: base.diversificationScore,
+                    after: projected.diversificationScore,
+                    decimals: 1,
+                    unit: '점',
+                    compact: compactTile,
+                    helpText: '섹터/자산군이 얼마나 고르게 퍼졌는지 보여줘요.',
+                  ),
+                ];
+
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final tile in tiles)
+                      SizedBox(
+                        width: tileWidth,
+                        child: tile,
+                      ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 12),
             Row(
@@ -2164,7 +2376,12 @@ class _AdviceScenarioPreviewCardState
                         Padding(
                           padding: const EdgeInsets.symmetric(
                               horizontal: 10, vertical: 9),
-                          child: _holdingPreviewTile(displayedHolding[i]),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () =>
+                                _openScenarioHoldingSheet(displayedHolding[i]),
+                            child: _holdingPreviewTile(displayedHolding[i]),
+                          ),
                         ),
                       ],
                     ],
@@ -2197,7 +2414,7 @@ class _AdviceScenarioPreviewCardState
         isDark ? const Color(0xFFF3F6FF) : const Color(0xFF1E3742);
 
     final won =
-        NumberFormat.currency(locale: 'ko_KR', symbol: '₩', decimalDigits: 0);
+        NumberFormat.currency(locale: 'ko_KR', symbol: '₩ ', decimalDigits: 0);
     final delta = item.afterValue - item.beforeValue;
     final changeAbsText = won.format(delta.abs());
     final String actionLabel;
@@ -2334,9 +2551,9 @@ class _AdviceScenarioPreviewCardState
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final won =
-        NumberFormat.currency(locale: 'ko_KR', symbol: '₩', decimalDigits: 0);
+        NumberFormat.currency(locale: 'ko_KR', symbol: '₩ ', decimalDigits: 0);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: color.withOpacity(isDark ? 0.16 : 0.12),
         borderRadius: BorderRadius.circular(999),
@@ -2558,6 +2775,7 @@ class _AdviceMetricDeltaTile extends StatelessWidget {
     required this.after,
     required this.decimals,
     required this.unit,
+    this.compact = false,
     this.helpText,
   });
 
@@ -2566,6 +2784,7 @@ class _AdviceMetricDeltaTile extends StatelessWidget {
   final double after;
   final int decimals;
   final String unit;
+  final bool compact;
   final String? helpText;
 
   @override
@@ -2591,9 +2810,12 @@ class _AdviceMetricDeltaTile extends StatelessWidget {
     final deltaText = delta == 0
         ? '변화 없음'
         : '${delta > 0 ? '상향' : '하향'} ${delta.abs().toStringAsFixed(decimals)}$unit';
+    final compactFlowText = '$beforeText -> $afterText';
+    final compactDeltaText = delta == 0
+        ? '0$unit'
+        : '${delta > 0 ? '+' : '-'}${delta.abs().toStringAsFixed(decimals)}$unit';
 
     return Container(
-      width: 232,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       decoration: BoxDecoration(
         color: tileBg,
@@ -2623,28 +2845,52 @@ class _AdviceMetricDeltaTile extends StatelessWidget {
                 color: valueText, fontWeight: FontWeight.w900, fontSize: 15),
           ),
           const SizedBox(height: 3),
-          Row(
-            children: [
-              Text(beforeText,
-                  style: TextStyle(color: titleText, fontSize: 11)),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: 3),
-                child: Icon(Icons.arrow_forward_rounded,
-                    size: 13, color: arrowText),
+          if (compact) ...[
+            Text(
+              compactFlowText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: beforeAfterText,
+                fontWeight: FontWeight.w700,
+                fontSize: 11,
               ),
-              Text(afterText,
-                  style: TextStyle(
-                      color: beforeAfterText,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 11)),
-              const Spacer(),
-              Text(deltaText,
-                  style: TextStyle(
-                      color: deltaColor,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 11)),
-            ],
-          ),
+            ),
+            const SizedBox(height: 2),
+            Align(
+              alignment: Alignment.centerRight,
+              child: Text(
+                compactDeltaText,
+                style: TextStyle(
+                  color: deltaColor,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 11,
+                ),
+              ),
+            ),
+          ] else
+            Row(
+              children: [
+                Text(beforeText,
+                    style: TextStyle(color: titleText, fontSize: 11)),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 3),
+                  child: Icon(Icons.arrow_forward_rounded,
+                      size: 13, color: arrowText),
+                ),
+                Text(afterText,
+                    style: TextStyle(
+                        color: beforeAfterText,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 11)),
+                const Spacer(),
+                Text(deltaText,
+                    style: TextStyle(
+                        color: deltaColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11)),
+              ],
+            ),
         ],
       ),
     );
@@ -3346,14 +3592,12 @@ class _PortfolioSimulationCardState
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final subText = isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5E7A7D);
-    final panelBg = isDark ? const Color(0xFF12213A) : const Color(0xFFF0F8F5);
-    final panelBorder =
-        isDark ? const Color(0xFF2A3E63) : const Color(0xFFD0E4DE);
     final panelText =
         isDark ? const Color(0xFFD3DCF0) : const Color(0xFF355056);
     final sectionTitle =
         isDark ? const Color(0xFFDDE7FF) : const Color(0xFF1E3742);
+    final dividerColor =
+        isDark ? const Color(0xFF2A3E63) : const Color(0xFFD0E4DE);
     final emptyText =
         isDark ? const Color(0xFF9AA7C0) : const Color(0xFF5D7A7E);
     final errorText =
@@ -3363,253 +3607,252 @@ class _PortfolioSimulationCardState
         PortfolioSimulationQuery(startDate: _startDate, endDate: _endDate);
     final simulationAsync = ref.watch(portfolioSimulationProvider(query));
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.end,
           children: [
-            Row(
-              children: [
-                const Expanded(
-                  child: Text('기간 수익 시뮬레이터',
-                      style:
-                          TextStyle(fontSize: 17, fontWeight: FontWeight.w900)),
-                ),
-                _TopCountBadge(
-                    label: _startDate == null && _endDate == null
-                        ? '매수일 기준'
-                        : '커스텀 기간'),
-              ],
+            _TopCountBadge(
+              label:
+                  _startDate == null && _endDate == null ? '매수일 기준' : '커스텀 기간',
             ),
-            const SizedBox(height: 6),
-            Text(
-              '현재 보유 수량을 과거 가격에 대입해 특정 기간 수익을 재현해요.',
-              style: TextStyle(color: subText, fontSize: 12),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _presetButton(
-                    '1개월', () => _applyPreset(const Duration(days: 30))),
-                _presetButton(
-                    '3개월', () => _applyPreset(const Duration(days: 90))),
-                _presetButton(
-                    '6개월', () => _applyPreset(const Duration(days: 180))),
-                _presetButton(
-                    '1년', () => _applyPreset(const Duration(days: 365))),
-                _presetButton('매수일 기준', _useBuyDateBase),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _pickStartDate,
-                    icon: const Icon(Icons.event_available_rounded, size: 16),
-                    label: Text('시작일 ${_formatDate(_startDate)}'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: _pickEndDate,
-                    icon: const Icon(Icons.event_rounded, size: 16),
-                    label: Text('기준일 ${_formatDate(_endDate)}'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            simulationAsync.when(
-              data: (data) {
-                final won = NumberFormat.currency(
-                    locale: 'ko_KR', symbol: '₩', decimalDigits: 0);
-                final profit = data.pnlAmount >= 0;
-                final pnlColor =
-                    profit ? const Color(0xFFFF6B81) : const Color(0xFF5CA8FF);
-
-                final contributions = data.contributions;
-                final visibleCount =
-                    math.min(_visibleContributionCount, contributions.length);
-                final visibleContributions =
-                    contributions.take(visibleCount).toList();
-                final canExpand = visibleCount < contributions.length;
-                final canCollapse = visibleCount > _initialContributionLimit;
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 9),
-                      decoration: BoxDecoration(
-                        color: panelBg,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: panelBorder),
-                      ),
-                      child: Text(
-                        '시뮬레이션 기간: ${data.startDate} ~ ${data.endDate} (${data.simulationDays}일)',
-                        style: TextStyle(
-                            color: panelText, fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                            child: _metric(
-                                '기간 손익률',
-                                '${profit ? '+' : ''}${data.pnlRate.toStringAsFixed(2)}%',
-                                pnlColor)),
-                        const SizedBox(width: 8),
-                        Expanded(
-                            child: _metric(
-                                '손익 금액',
-                                '${profit ? '+' : ''}${won.format(data.pnlAmount)}',
-                                pnlColor)),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                            child: _metric(
-                                '연환산 수익률',
-                                '${data.annualizedReturnPct.toStringAsFixed(2)}%',
-                                const Color(0xFF65D6A5))),
-                        const SizedBox(width: 8),
-                        Expanded(
-                            child: _metric(
-                                '최대 낙폭(MDD)',
-                                '${data.maxDrawdownPct.toStringAsFixed(2)}%',
-                                const Color(0xFFFFC56B))),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    if (data.timeline.isNotEmpty) ...[
-                      Text('기간 누적 수익 곡선',
-                          style: TextStyle(
-                              color: sectionTitle,
-                              fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                          height: 176,
-                          child:
-                              _SimulationTrendChart(timeline: data.timeline)),
-                    ],
-                    const SizedBox(height: 10),
-                    Text('종목 기여도 TOP',
-                        style: TextStyle(
-                            color: sectionTitle, fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 6),
-                    if (visibleContributions.isEmpty)
-                      Text('기여도 데이터가 없습니다.', style: TextStyle(color: emptyText))
-                    else
-                      AnimatedSize(
-                        duration: const Duration(milliseconds: 220),
-                        curve: Curves.easeOutCubic,
-                        child: Column(
-                          children: visibleContributions.map((item) {
-                            final up = item.pnlAmount >= 0;
-                            final color = up
-                                ? const Color(0xFFFF6B81)
-                                : const Color(0xFF5CA8FF);
-                            return Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: panelBg,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: panelBorder),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          '${item.assetName} (${_normalizeTicker(item.symbol)})',
-                                          style: TextStyle(
-                                              color: sectionTitle,
-                                              fontWeight: FontWeight.w800),
-                                        ),
-                                      ),
-                                      Text(
-                                        '${up ? '+' : ''}${item.pnlRate.toStringAsFixed(2)}%',
-                                        style: TextStyle(
-                                            color: color,
-                                            fontWeight: FontWeight.w900),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    '기여 손익 ${up ? '+' : ''}${won.format(item.pnlAmount)} / 시작 ${won.format(item.startPrice)} → 기준 ${won.format(item.endPrice)}',
-                                    style: TextStyle(
-                                        color: panelText, fontSize: 12),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    if (contributions.length > _initialContributionLimit)
-                      _ProgressiveRevealControl(
-                        canExpand: canExpand,
-                        canCollapse: canCollapse,
-                        remainingCount: contributions.length - visibleCount,
-                        onExpand: () =>
-                            _expandContributions(contributions.length),
-                        onCollapse: _collapseContributions,
-                      ),
-                    const SizedBox(height: 4),
-                    ..._resolvedSimulationNotes(data.notes).map(_note),
-                  ],
-                );
-              },
-              loading: () => const SizedBox(
-                  height: 220,
-                  child: Center(child: CircularProgressIndicator())),
-              error: (e, _) =>
-                  Text('시뮬레이터 로딩 실패: $e', style: TextStyle(color: errorText)),
+            const SizedBox(width: 6),
+            const _InlineInfoIcon(
+              message: '기간을 선택하면 수익률/손익/기여도를 계산합니다.',
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _presetButton('1개월', () => _applyPreset(const Duration(days: 30))),
+            _presetButton('3개월', () => _applyPreset(const Duration(days: 90))),
+            _presetButton('6개월', () => _applyPreset(const Duration(days: 180))),
+            _presetButton('1년', () => _applyPreset(const Duration(days: 365))),
+            _presetButton('매수일 기준', _useBuyDateBase),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _pickStartDate,
+                icon: const Icon(Icons.event_available_rounded, size: 16),
+                label: Text('시작일 ${_formatDate(_startDate)}'),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _pickEndDate,
+                icon: const Icon(Icons.event_rounded, size: 16),
+                label: Text('기준일 ${_formatDate(_endDate)}'),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        simulationAsync.when(
+          data: (data) {
+            final won = NumberFormat.currency(
+                locale: 'ko_KR', symbol: '₩ ', decimalDigits: 0);
+            final profit = data.pnlAmount >= 0;
+            final pnlColor =
+                profit ? const Color(0xFFFF6B81) : const Color(0xFF5CA8FF);
+
+            final contributions = data.contributions;
+            final visibleCount =
+                math.min(_visibleContributionCount, contributions.length);
+            final visibleContributions =
+                contributions.take(visibleCount).toList();
+            final canExpand = visibleCount < contributions.length;
+            final canCollapse = visibleCount > _initialContributionLimit;
+
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '시뮬레이션 기간: ${data.startDate} ~ ${data.endDate} (${data.simulationDays}일)',
+                  style:
+                      TextStyle(color: panelText, fontWeight: FontWeight.w700),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                        child: _metric(
+                            '기간 손익률',
+                            '${profit ? '+' : ''}${data.pnlRate.toStringAsFixed(2)}%',
+                            pnlColor)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: _metric(
+                            '손익 금액',
+                            '${profit ? '+' : ''}${won.format(data.pnlAmount)}',
+                            pnlColor)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                        child: _metric(
+                            '연환산 수익률',
+                            '${data.annualizedReturnPct.toStringAsFixed(2)}%',
+                            const Color(0xFF65D6A5))),
+                    const SizedBox(width: 8),
+                    Expanded(
+                        child: _metric(
+                            '최대 낙폭(MDD)',
+                            '${data.maxDrawdownPct.toStringAsFixed(2)}%',
+                            const Color(0xFFFFC56B))),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                if (data.timeline.isNotEmpty) ...[
+                  Text('기간 누적 수익 곡선',
+                      style: TextStyle(
+                          color: sectionTitle, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                      height: 176,
+                      child: _SimulationTrendChart(timeline: data.timeline)),
+                ],
+                const SizedBox(height: 10),
+                Text('종목 기여도 TOP',
+                    style: TextStyle(
+                        color: sectionTitle, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                if (visibleContributions.isEmpty)
+                  Text('기여도 데이터가 없습니다.', style: TextStyle(color: emptyText))
+                else
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 220),
+                    curve: Curves.easeOutCubic,
+                    child: Column(
+                      children: [
+                        for (int i = 0;
+                            i < visibleContributions.length;
+                            i++) ...[
+                          Builder(
+                            builder: (context) {
+                              final item = visibleContributions[i];
+                              final up = item.pnlAmount >= 0;
+                              final color = up
+                                  ? const Color(0xFFFF6B81)
+                                  : const Color(0xFF5CA8FF);
+                              return Padding(
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 7),
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(8),
+                                  onTap: () {
+                                    showAssetDetailSheet(
+                                      context,
+                                      data: AssetDetailSheetData(
+                                        assetName: item.assetName,
+                                        symbol: _normalizeTicker(item.symbol),
+                                        fields: [
+                                          AssetDetailField(
+                                              label: '보유 수량',
+                                              value:
+                                                  '${NumberFormat.decimalPattern('ko_KR').format(item.quantity)}주'),
+                                          AssetDetailField(
+                                            label: '기여 손익',
+                                            value:
+                                                '${up ? '+' : ''}${won.format(item.pnlAmount)}',
+                                            valueColor: color,
+                                          ),
+                                          AssetDetailField(
+                                              label: '시작 가격',
+                                              value:
+                                                  won.format(item.startPrice)),
+                                          AssetDetailField(
+                                              label: '기준 가격',
+                                              value: won.format(item.endPrice)),
+                                        ],
+                                      ),
+                                    );
+                                  },
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              '${item.assetName} (${_normalizeTicker(item.symbol)})',
+                                              style: TextStyle(
+                                                  color: sectionTitle,
+                                                  fontWeight: FontWeight.w800),
+                                            ),
+                                          ),
+                                          Text(
+                                            '${up ? '+' : ''}${item.pnlRate.toStringAsFixed(2)}%',
+                                            style: TextStyle(
+                                                color: color,
+                                                fontWeight: FontWeight.w900),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        '기여 손익 ${up ? '+' : ''}${won.format(item.pnlAmount)} / 시작 ${won.format(item.startPrice)} → 기준 ${won.format(item.endPrice)}',
+                                        style: TextStyle(
+                                            color: panelText, fontSize: 12),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          if (i != visibleContributions.length - 1)
+                            Divider(
+                                height: 1, thickness: 1, color: dividerColor),
+                        ],
+                      ],
+                    ),
+                  ),
+                if (contributions.length > _initialContributionLimit)
+                  _ProgressiveRevealControl(
+                    canExpand: canExpand,
+                    canCollapse: canCollapse,
+                    remainingCount: contributions.length - visibleCount,
+                    onExpand: () => _expandContributions(contributions.length),
+                    onCollapse: _collapseContributions,
+                  ),
+                const SizedBox(height: 4),
+                _buildNotesToggle(_resolvedSimulationNotes(data.notes)),
+              ],
+            );
+          },
+          loading: () => const SizedBox(
+              height: 220, child: Center(child: CircularProgressIndicator())),
+          error: (e, _) =>
+              Text('시뮬레이터 로딩 실패: $e', style: TextStyle(color: errorText)),
+        ),
+      ],
     );
   }
 
   Widget _metric(String label, String value, Color valueColor) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final tileBg = isDark ? const Color(0xFF12213A) : const Color(0xFFF7FCFA);
-    final tileBorder =
-        isDark ? const Color(0xFF2A3E63) : const Color(0xFFD0E4DE);
     final labelColor =
         isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5D7A7E);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-      decoration: BoxDecoration(
-        color: tileBg,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: tileBorder),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: TextStyle(color: labelColor, fontSize: 12)),
-          const SizedBox(height: 2),
-          Text(value,
-              style: TextStyle(color: valueColor, fontWeight: FontWeight.w900)),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: TextStyle(color: labelColor, fontSize: 12)),
+        const SizedBox(height: 2),
+        Text(value,
+            style: TextStyle(color: valueColor, fontWeight: FontWeight.w900)),
+      ],
     );
   }
 
@@ -3653,6 +3896,31 @@ class _PortfolioSimulationCardState
     );
   }
 
+  Widget _buildNotesToggle(List<String> notes) {
+    if (notes.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor =
+        isDark ? const Color(0xFF9FB0CD) : const Color(0xFF4F6B71);
+    return Theme(
+      data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+      child: ExpansionTile(
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(top: 2),
+        title: Text(
+          '주의사항',
+          style: TextStyle(
+            color: titleColor,
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        children: notes.map(_note).toList(),
+      ),
+    );
+  }
+
   List<String> _resolvedSimulationNotes(List<String> notes) {
     final filtered = notes.where((note) => !_looksMojibake(note)).toList();
     if (filtered.isNotEmpty) {
@@ -3691,6 +3959,12 @@ class _SimulationTrendChart extends StatelessWidget {
     if (timeline.isEmpty) {
       return const SizedBox.shrink();
     }
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final axisTextColor =
+        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF3E5A74);
+    final axisDateColor =
+        isDark ? const Color(0xFF7E90B2) : const Color(0xFF496483);
 
     final values = timeline.map((e) => e.cumulativeReturnPct).toList();
     final minY = values.reduce(math.min);
@@ -3737,7 +4011,7 @@ class _SimulationTrendChart extends StatelessWidget {
               reservedSize: 40,
               getTitlesWidget: (value, meta) => Text(
                 '${value.toStringAsFixed(0)}%',
-                style: const TextStyle(color: Color(0xFF8EA0C1), fontSize: 10),
+                style: TextStyle(color: axisTextColor, fontSize: 10),
               ),
             ),
           ),
@@ -3755,8 +4029,7 @@ class _SimulationTrendChart extends StatelessWidget {
                 final date = timeline[idx].date;
                 return Text(
                   date.length >= 10 ? date.substring(5, 10) : date,
-                  style:
-                      const TextStyle(color: Color(0xFF7E90B2), fontSize: 10),
+                  style: TextStyle(color: axisDateColor, fontSize: 10),
                 );
               },
             ),
@@ -3855,11 +4128,34 @@ class _RebalancingActionsCardState extends State<_RebalancingActionsCard> {
     }
   }
 
+  void _openActionSheet(RebalancingActionData action) {
+    final won =
+        NumberFormat.currency(locale: 'ko_KR', symbol: '₩ ', decimalDigits: 0);
+    final buy = action.action == 'BUY';
+    showAssetDetailSheet(
+      context,
+      data: AssetDetailSheetData(
+        assetName: action.assetName,
+        symbol: _normalizeTicker(action.symbol),
+        note: action.reason,
+        fields: [
+          AssetDetailField(label: '권장 액션', value: buy ? '매수' : '매도'),
+          AssetDetailField(
+              label: '현재 비중',
+              value: '${action.currentWeightPct.toStringAsFixed(1)}%'),
+          AssetDetailField(
+              label: '목표 비중',
+              value: '${action.targetWeightPct.toStringAsFixed(1)}%'),
+          AssetDetailField(
+              label: '제안 금액', value: won.format(action.suggestedAmount)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleText =
-        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5E7A7D);
     final bodyText = isDark ? const Color(0xFFD3DCF0) : const Color(0xFF335055);
     final mutedText =
         isDark ? const Color(0xFF9AA7C0) : const Color(0xFF647E81);
@@ -3870,7 +4166,7 @@ class _RebalancingActionsCardState extends State<_RebalancingActionsCard> {
         isDark ? const Color(0xFFE8EEFF) : const Color(0xFF1E3742);
 
     final won =
-        NumberFormat.currency(locale: 'ko_KR', symbol: '₩', decimalDigits: 0);
+        NumberFormat.currency(locale: 'ko_KR', symbol: '₩ ', decimalDigits: 0);
     final actions = widget.actions.take(_visibleCount).toList();
     final canExpand = _visibleCount < widget.actions.length;
     final canCollapse = _visibleCount > _initialCount(widget.actions.length);
@@ -3890,9 +4186,6 @@ class _RebalancingActionsCardState extends State<_RebalancingActionsCard> {
                 _TopCountBadge(label: '총 ${widget.actions.length}건'),
               ],
             ),
-            const SizedBox(height: 6),
-            Text('목표 비중 대비 이탈 구간을 우선순위로 정렬했습니다.',
-                style: TextStyle(color: titleText, fontSize: 12)),
             const SizedBox(height: 10),
             AnimatedSize(
               duration: const Duration(milliseconds: 220),
@@ -3915,11 +4208,7 @@ class _RebalancingActionsCardState extends State<_RebalancingActionsCard> {
                                   color: Color(0xFFB9F5DD),
                                   fontWeight: FontWeight.w800)),
                           SizedBox(height: 4),
-                          Text('운영전략 1) 월 1회만 점검하고 허용오차(±3%) 이탈 시에만 조정',
-                              style: TextStyle(color: bodyText, fontSize: 12)),
-                          Text('운영전략 2) 신규 자금 유입분으로만 목표 비중 보정',
-                              style: TextStyle(color: bodyText, fontSize: 12)),
-                          Text('운영전략 3) 과도한 매매 대신 리스크 임계치 알림 기반 대응',
+                          Text('지금은 유지 점검 단계입니다.',
                               style: TextStyle(color: bodyText, fontSize: 12)),
                         ],
                       ),
@@ -3951,81 +4240,88 @@ class _RebalancingActionsCardState extends State<_RebalancingActionsCard> {
                                       final accent = buy
                                           ? const Color(0xFF5CA8FF)
                                           : const Color(0xFFFF6B81);
-                                      return Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  '${action.assetName} (${_normalizeTicker(action.symbol)})',
-                                                  style: TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w800,
-                                                      color: tileTitle),
+                                      return InkWell(
+                                        borderRadius: BorderRadius.circular(8),
+                                        onTap: () => _openActionSheet(action),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    '${action.assetName} (${_normalizeTicker(action.symbol)})',
+                                                    style: TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w800,
+                                                        color: tileTitle),
+                                                  ),
                                                 ),
-                                              ),
-                                              Container(
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 3),
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      accent.withOpacity(0.2),
-                                                  borderRadius:
-                                                      BorderRadius.circular(
-                                                          999),
+                                                Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 3),
+                                                  decoration: BoxDecoration(
+                                                    color:
+                                                        accent.withOpacity(0.2),
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            999),
+                                                  ),
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        buy
+                                                            ? Icons
+                                                                .add_shopping_cart_rounded
+                                                            : Icons
+                                                                .sell_rounded,
+                                                        size: 12,
+                                                        color: accent,
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      Text(
+                                                        buy ? '매수 제안' : '매도 제안',
+                                                        style: TextStyle(
+                                                            color: accent,
+                                                            fontWeight:
+                                                                FontWeight.w900,
+                                                            fontSize: 11),
+                                                      ),
+                                                    ],
+                                                  ),
                                                 ),
-                                                child: Row(
-                                                  mainAxisSize:
-                                                      MainAxisSize.min,
-                                                  children: [
-                                                    Icon(
-                                                      buy
-                                                          ? Icons
-                                                              .add_shopping_cart_rounded
-                                                          : Icons.sell_rounded,
-                                                      size: 12,
-                                                      color: accent,
-                                                    ),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      buy ? '매수 제안' : '매도 제안',
-                                                      style: TextStyle(
-                                                          color: accent,
-                                                          fontWeight:
-                                                              FontWeight.w900,
-                                                          fontSize: 11),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '현재 ${action.currentWeightPct.toStringAsFixed(1)}% → 목표 ${action.targetWeightPct.toStringAsFixed(1)}%',
-                                            style: TextStyle(
-                                                color: bodyText, fontSize: 12),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            '${buy ? '매수' : '매도'} 금액 ${won.format(action.suggestedAmount)}',
-                                            style: TextStyle(
-                                              color: accent,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w800,
+                                              ],
                                             ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            action.reason,
-                                            style: TextStyle(
-                                                color: mutedText, fontSize: 12),
-                                          ),
-                                        ],
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              '현재 ${action.currentWeightPct.toStringAsFixed(1)}% → 목표 ${action.targetWeightPct.toStringAsFixed(1)}%',
+                                              style: TextStyle(
+                                                  color: bodyText,
+                                                  fontSize: 12),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              '${buy ? '매수' : '매도'} 금액 ${won.format(action.suggestedAmount)}',
+                                              style: TextStyle(
+                                                color: accent,
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w800,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              action.reason,
+                                              style: TextStyle(
+                                                  color: mutedText,
+                                                  fontSize: 12),
+                                            ),
+                                          ],
+                                        ),
                                       );
                                     },
                                   ),
@@ -4101,11 +4397,31 @@ class _EtfRecommendationCardState extends State<_EtfRecommendationCard> {
     }
   }
 
+  void _openEtfSheet(EtfRecommendationData etf) {
+    showAssetDetailSheet(
+      context,
+      data: AssetDetailSheetData(
+        assetName: etf.name,
+        symbol: etf.symbol,
+        note: etf.reason,
+        fields: [
+          AssetDetailField(label: '시장', value: etf.market),
+          AssetDetailField(label: '테마', value: etf.focusTheme),
+          AssetDetailField(label: '매칭 점수', value: '${etf.matchScore}점'),
+          AssetDetailField(
+              label: '권장 비중',
+              value: '${etf.suggestedWeightPct.toStringAsFixed(1)}%'),
+          AssetDetailField(
+              label: '총보수',
+              value: '${etf.expenseRatioPct.toStringAsFixed(4)}%'),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final titleText =
-        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5E7A7D);
     final bodyText = isDark ? const Color(0xFFD3DCF0) : const Color(0xFF335055);
     final mutedText =
         isDark ? const Color(0xFF9AA7C0) : const Color(0xFF647E81);
@@ -4135,9 +4451,6 @@ class _EtfRecommendationCardState extends State<_EtfRecommendationCard> {
                 _TopCountBadge(label: '총 ${widget.recommendations.length}종목'),
               ],
             ),
-            const SizedBox(height: 6),
-            Text('위험수준과 집중도를 반영한 대체 포지션 제안이에요.',
-                style: TextStyle(color: titleText, fontSize: 12)),
             const SizedBox(height: 10),
             AnimatedSize(
               duration: const Duration(milliseconds: 220),
@@ -4160,7 +4473,7 @@ class _EtfRecommendationCardState extends State<_EtfRecommendationCard> {
                                   color: Color(0xFFBAD2FF),
                                   fontWeight: FontWeight.w800)),
                           SizedBox(height: 4),
-                          Text('도움말) 신규 매수할 때는 저비용 광역지수 ETF를 먼저 비교해 보세요.',
+                          Text('지금은 ETF 교체보다 비중 유지가 유효합니다.',
                               style: TextStyle(color: bodyText, fontSize: 12)),
                         ],
                       ),
@@ -4195,43 +4508,49 @@ class _EtfRecommendationCardState extends State<_EtfRecommendationCard> {
                                           : etf.riskBucket == 'MID'
                                               ? const Color(0xFFFFC56B)
                                               : const Color(0xFFFF6B81);
-                                      return Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Expanded(
-                                                child: Text(
-                                                  '${etf.symbol} ${etf.name}',
-                                                  style: TextStyle(
-                                                      color: tileTitle,
-                                                      fontWeight:
-                                                          FontWeight.w800),
+                                      return InkWell(
+                                        borderRadius: BorderRadius.circular(8),
+                                        onTap: () => _openEtfSheet(etf),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                Expanded(
+                                                  child: Text(
+                                                    '${etf.symbol} ${etf.name}',
+                                                    style: TextStyle(
+                                                        color: tileTitle,
+                                                        fontWeight:
+                                                            FontWeight.w800),
+                                                  ),
                                                 ),
-                                              ),
-                                              Text(
-                                                '${etf.matchScore}점',
-                                                style: TextStyle(
-                                                    color: color,
-                                                    fontWeight:
-                                                        FontWeight.w900),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 4),
-                                          Text(
-                                            '${etf.focusTheme} · 권장 비중 ${etf.suggestedWeightPct.toStringAsFixed(1)}% · 총보수 ${etf.expenseRatioPct.toStringAsFixed(4)}%',
-                                            style: TextStyle(
-                                                color: bodyText, fontSize: 12),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            etf.reason,
-                                            style: TextStyle(
-                                                color: mutedText, fontSize: 12),
-                                          ),
-                                        ],
+                                                Text(
+                                                  '${etf.matchScore}점',
+                                                  style: TextStyle(
+                                                      color: color,
+                                                      fontWeight:
+                                                          FontWeight.w900),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              '${etf.focusTheme} · 권장 비중 ${etf.suggestedWeightPct.toStringAsFixed(1)}% · 총보수 ${etf.expenseRatioPct.toStringAsFixed(4)}%',
+                                              style: TextStyle(
+                                                  color: bodyText,
+                                                  fontSize: 12),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              etf.reason,
+                                              style: TextStyle(
+                                                  color: mutedText,
+                                                  fontSize: 12),
+                                            ),
+                                          ],
+                                        ),
                                       );
                                     },
                                   ),
@@ -4308,25 +4627,49 @@ class _HoldingAssetCardState extends State<_HoldingAssetCard> {
     }
   }
 
+  void _openPositionSheet(PositionData position) {
+    final won =
+        NumberFormat.currency(locale: 'ko_KR', symbol: '₩ ', decimalDigits: 0);
+    final quantity =
+        NumberFormat.decimalPattern('ko_KR').format(position.quantity);
+    showAssetDetailSheet(
+      context,
+      data: AssetDetailSheetData(
+        assetName: position.assetName,
+        symbol: _normalizeTicker(position.symbol),
+        price: position.currentPrice,
+        fields: [
+          AssetDetailField(label: '보유 수량', value: '$quantity주'),
+          AssetDetailField(label: '평균 단가', value: won.format(position.avgCost)),
+          AssetDetailField(
+              label: '평가 금액', value: won.format(position.valuation)),
+          AssetDetailField(
+            label: '수익률',
+            value:
+                '${position.pnlRate >= 0 ? '+' : ''}${position.pnlRate.toStringAsFixed(2)}%',
+            valueColor: position.pnlRate >= 0
+                ? const Color(0xFFFF6B81)
+                : const Color(0xFF5CA8FF),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final tileBg = isDark ? const Color(0xFF182540) : const Color(0xFFF4FBF9);
-    final tileBorder =
-        isDark ? const Color(0xFF2E446A) : const Color(0xFFD2E6E0);
-    final cardTitleText =
-        isDark ? const Color(0xFFF3F6FF) : const Color(0xFF1F3842);
-    final cardSubText =
-        isDark ? const Color(0xFF91A0BC) : const Color(0xFF5D7A7E);
-    final summaryBg =
-        isDark ? const Color(0xFF12213A) : const Color(0xFFF0F8F5);
-    final summaryBorder =
-        isDark ? const Color(0xFF2A3E63) : const Color(0xFFD0E4DE);
-    final summaryLabel =
-        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF567377);
+    final titleColor =
+        isDark ? const Color(0xFFE4EBF8) : const Color(0xFF23344D);
+    final subColor = isDark ? const Color(0xFF8EA0C1) : const Color(0xFF5D718F);
+    final dividerColor =
+        isDark ? const Color(0xFF25344D) : const Color(0xFFD4DFEF);
+    final marketLabelColor =
+        isDark ? const Color(0xFF9FB3D5) : const Color(0xFF637C9B);
 
     final won =
-        NumberFormat.currency(locale: 'ko_KR', symbol: '₩', decimalDigits: 0);
+        NumberFormat.currency(locale: 'ko_KR', symbol: '₩ ', decimalDigits: 0);
+    final quantityFormat = NumberFormat.decimalPattern('ko_KR');
     final positions = widget.positions.take(_visibleCount).toList();
 
     final totalValuation =
@@ -4334,154 +4677,196 @@ class _HoldingAssetCardState extends State<_HoldingAssetCard> {
     final totalCost = widget.positions
         .fold<double>(0, (sum, p) => sum + p.avgCost * p.quantity);
     final totalPnl = totalValuation - totalCost;
-    final totalPnlRate = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
-    final totalProfit = totalPnl >= 0;
+    final totalPnlRate = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0.0;
     final canExpand = _visibleCount < widget.positions.length;
     final canCollapse = _visibleCount > _initialCount(widget.positions.length);
+    final domestic =
+        positions.where((p) => _isDomesticSymbol(p.symbol)).toList();
+    final overseas =
+        positions.where((p) => !_isDomesticSymbol(p.symbol)).toList();
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
           children: [
-            Row(
-              children: [
-                Text('보유 자산 TOP ${positions.length}',
-                    style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w900)),
-                const Spacer(),
-                _TopCountBadge(label: '총 ${widget.positions.length}종목'),
-              ],
-            ),
-            const SizedBox(height: 10),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 220),
-              curve: Curves.easeOutCubic,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: tileBg,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: tileBorder),
-                ),
-                child: Column(
-                  children: [
-                    for (int i = 0; i < positions.length; i++) ...[
-                      if (i > 0)
-                        Divider(
-                          height: 1,
-                          thickness: 1,
-                          color: tileBorder,
-                        ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 10),
-                        child: Builder(
-                          builder: (context) {
-                            final p = positions[i];
-                            final up = p.pnlRate >= 0;
-                            return Row(
-                              children: [
-                                Container(
-                                  width: 3,
-                                  height: 34,
-                                  margin: const EdgeInsets.only(right: 8),
-                                  decoration: BoxDecoration(
-                                    color: up
-                                        ? const Color(0xFFFF6B81)
-                                        : const Color(0xFF5CA8FF),
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(p.assetName,
-                                          style: TextStyle(
-                                              fontWeight: FontWeight.w700,
-                                              color: cardTitleText)),
-                                      const SizedBox(height: 2),
-                                      Text(_normalizeTicker(p.symbol),
-                                          style: TextStyle(
-                                              color: cardSubText,
-                                              fontSize: 12)),
-                                    ],
-                                  ),
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(won.format(p.valuation),
-                                        style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            color: cardTitleText)),
-                                    Text(
-                                      '${up ? '+' : ''}${p.pnlRate.toStringAsFixed(2)}%',
-                                      style: TextStyle(
-                                          color: up
-                                              ? const Color(0xFFFF6B81)
-                                              : const Color(0xFF5CA8FF),
-                                          fontWeight: FontWeight.w700),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            if (widget.positions.length >
-                _initialCount(widget.positions.length))
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: _ProgressiveRevealControl(
-                  canExpand: canExpand,
-                  canCollapse: canCollapse,
-                  remainingCount: widget.positions.length - _visibleCount,
-                  onExpand: _expand,
-                  onCollapse: _collapse,
-                ),
-              ),
-            const SizedBox(height: 2),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-              decoration: BoxDecoration(
-                  color: summaryBg,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: summaryBorder)),
-              child: Row(
-                children: [
-                  Text('포트폴리오 합계',
-                      style: TextStyle(
-                          color: summaryLabel, fontWeight: FontWeight.w800)),
-                  const Spacer(),
-                  Text(won.format(totalValuation),
-                      style: TextStyle(
-                          color: cardTitleText, fontWeight: FontWeight.w800)),
-                  const SizedBox(width: 12),
-                  Text(
-                    '${totalProfit ? '+' : ''}${won.format(totalPnl)} (${totalProfit ? '+' : ''}${totalPnlRate.toStringAsFixed(2)}%)',
-                    style: TextStyle(
-                        color: totalProfit
-                            ? const Color(0xFFFF6B81)
-                            : const Color(0xFF5CA8FF),
-                        fontWeight: FontWeight.w800),
-                  ),
-                ],
-              ),
-            ),
+            Text('보유 자산',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w900,
+                  color: titleColor,
+                )),
+            const Spacer(),
+            Text('총 ${widget.positions.length}종목',
+                style: TextStyle(
+                    color: subColor,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12)),
           ],
         ),
+        const SizedBox(height: 8),
+        Divider(height: 1, thickness: 1, color: dividerColor),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _marketSectionHeader('국내주식', domestic.length, marketLabelColor),
+              ..._buildHoldingRows(
+                items: domestic,
+                titleColor: titleColor,
+                subColor: subColor,
+                dividerColor: dividerColor,
+                won: won,
+                quantityFormat: quantityFormat,
+              ),
+              if (overseas.isNotEmpty) const SizedBox(height: 4),
+              _marketSectionHeader('해외주식', overseas.length, marketLabelColor),
+              ..._buildHoldingRows(
+                items: overseas,
+                titleColor: titleColor,
+                subColor: subColor,
+                dividerColor: dividerColor,
+                won: won,
+                quantityFormat: quantityFormat,
+              ),
+            ],
+          ),
+        ),
+        if (widget.positions.length > _initialCount(widget.positions.length))
+          Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 6),
+            child: _ProgressiveRevealControl(
+              canExpand: canExpand,
+              canCollapse: canCollapse,
+              remainingCount: widget.positions.length - _visibleCount,
+              onExpand: _expand,
+              onCollapse: _collapse,
+            ),
+          ),
+        Divider(height: 1, thickness: 1, color: dividerColor),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Text('포트폴리오 합계',
+                style: TextStyle(color: subColor, fontWeight: FontWeight.w800)),
+            const Spacer(),
+            Text(won.format(totalValuation),
+                style:
+                    TextStyle(color: titleColor, fontWeight: FontWeight.w900)),
+            const SizedBox(width: 8),
+            _InlineRateBadge(rate: totalPnlRate, compact: true),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _marketSectionHeader(String label, int count, Color textColor) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 4),
+      child: Row(
+        children: [
+          Text(label,
+              style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12.5)),
+          const SizedBox(width: 6),
+          Text('$count개',
+              style: TextStyle(
+                  color: textColor.withValues(alpha: 0.8), fontSize: 11)),
+        ],
       ),
     );
+  }
+
+  List<Widget> _buildHoldingRows({
+    required List<PositionData> items,
+    required Color titleColor,
+    required Color subColor,
+    required Color dividerColor,
+    required NumberFormat won,
+    required NumberFormat quantityFormat,
+  }) {
+    if (items.isEmpty) {
+      return [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text('보유 종목이 없습니다.',
+              style: TextStyle(color: subColor, fontSize: 12)),
+        ),
+      ];
+    }
+
+    return [
+      for (int i = 0; i < items.length; i++) ...[
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Builder(
+            builder: (context) {
+              final p = items[i];
+              final quantityText = quantityFormat.format(p.quantity);
+              return InkWell(
+                borderRadius: BorderRadius.circular(8),
+                onTap: () => _openPositionSheet(p),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 5,
+                      height: 5,
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF6E8EB8),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            p.assetName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800, color: titleColor),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            '${_normalizeTicker(p.symbol)} · $quantityText주',
+                            style: TextStyle(color: subColor, fontSize: 11.5),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(won.format(p.valuation),
+                            style: TextStyle(
+                                fontWeight: FontWeight.w800,
+                                color: titleColor)),
+                        const SizedBox(height: 2),
+                        _InlineRateBadge(rate: p.pnlRate, compact: true),
+                      ],
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+        if (i != items.length - 1)
+          Divider(height: 1, thickness: 1, color: dividerColor),
+      ],
+    ];
+  }
+
+  bool _isDomesticSymbol(String symbol) {
+    return RegExp(r'^A\d{6}$').hasMatch(symbol.trim());
   }
 }
 
@@ -4506,7 +4891,7 @@ class _TopCountBadge extends StatelessWidget {
         style: TextStyle(
           color: isDark ? const Color(0xFFBAD2FF) : const Color(0xFF2A6F66),
           fontWeight: FontWeight.w700,
-          fontSize: 11,
+          fontSize: 10.5,
         ),
       ),
     );
@@ -4546,8 +4931,8 @@ class _ProgressiveRevealControl extends StatelessWidget {
                   isDark ? const Color(0xFF9FB3D8) : const Color(0xFF3B6A76),
               visualDensity: VisualDensity.compact,
             ),
-            icon: const Icon(Icons.remove_circle_outline_rounded, size: 16),
-            label: const Text('기본만 보기'),
+            icon: const Icon(Icons.keyboard_arrow_up_rounded, size: 18),
+            label: const Text('접기'),
           ),
         if (canExpand)
           FilledButton.tonalIcon(
@@ -4560,8 +4945,8 @@ class _ProgressiveRevealControl extends StatelessWidget {
               visualDensity: VisualDensity.compact,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             ),
-            icon: const Icon(Icons.add_circle_outline_rounded, size: 16),
-            label: Text('전체 보기 +$remainingCount'),
+            icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 18),
+            label: Text('더 보기 +$remainingCount'),
           ),
       ],
     );

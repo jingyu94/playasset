@@ -12,11 +12,14 @@ class SettingsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final sectionTitle =
+        isDark ? const Color(0xFFEAF1FF) : const Color(0xFF0E2034);
     final session = ref.watch(sessionControllerProvider).session;
     final profile = ref.watch(investmentProfileProvider);
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
       children: [
         Row(
           children: [
@@ -36,12 +39,7 @@ class SettingsTab extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 8),
-        const Text(
-          '내 투자성향을 먼저 잡아두면 리밸런싱/ETF 제안이 훨씬 직관적으로 보여요.',
-          style: TextStyle(color: Color(0xFF91A0BC)),
-        ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         _InvestmentProfileCard(profile: profile),
         const SizedBox(height: 12),
         if (session != null) ...[
@@ -60,10 +58,10 @@ class SettingsTab extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
         ],
-        const Text(
+        Text(
           '환경 정보',
           style: TextStyle(
-            color: Color(0xFFEAF1FF),
+            color: sectionTitle,
             fontSize: 14,
             fontWeight: FontWeight.w800,
           ),
@@ -98,6 +96,19 @@ class _InvestmentProfileCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleText =
+        isDark ? const Color(0xFFF3F6FF) : const Color(0xFF132231);
+    final bodyText = isDark ? const Color(0xFFD8E4FF) : const Color(0xFF1F334D);
+    final panelBg = isDark ? const Color(0xFF12213A) : const Color(0xFFEFF5FF);
+    final panelBorder =
+        isDark ? const Color(0xFF2A3E63) : const Color(0xFFC6D8F3);
+    final panelTitle =
+        isDark ? const Color(0xFFEAF1FF) : const Color(0xFF1A3254);
+    final panelHint =
+        isDark ? const Color(0xFFABC0E3) : const Color(0xFF345372);
+    final panelSubHint =
+        isDark ? const Color(0xFF8EA0C1) : const Color(0xFF425E7E);
     final dateFmt = DateFormat('M월 d일 HH:mm', 'ko_KR');
     final updatedAt = profile == null
         ? null
@@ -111,12 +122,12 @@ class _InvestmentProfileCard extends ConsumerWidget {
           children: [
             Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     '투자 성향 진단',
                     style: TextStyle(
                       fontWeight: FontWeight.w900,
-                      color: Color(0xFFF3F6FF),
+                      color: titleText,
                     ),
                   ),
                 ),
@@ -129,15 +140,15 @@ class _InvestmentProfileCard extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             if (profile == null)
-              const Text(
+              Text(
                 '아직 성향 진단이 없어요. 1분 설문만 하면 내 포트 기준으로 개선 방향을 바로 보여줘요.',
-                style: TextStyle(color: Color(0xFFD8E4FF), height: 1.35),
+                style: TextStyle(color: bodyText, height: 1.35),
               )
             else ...[
               Text(
                 profile!.profileName,
-                style: const TextStyle(
-                  color: Color(0xFFF3F6FF),
+                style: TextStyle(
+                  color: titleText,
                   fontWeight: FontWeight.w900,
                   fontSize: 16,
                 ),
@@ -145,7 +156,7 @@ class _InvestmentProfileCard extends ConsumerWidget {
               const SizedBox(height: 4),
               Text(
                 profile!.summary,
-                style: const TextStyle(color: Color(0xFFD8E4FF), height: 1.35),
+                style: TextStyle(color: bodyText, height: 1.35),
               ),
               const SizedBox(height: 8),
               Container(
@@ -153,25 +164,25 @@ class _InvestmentProfileCard extends ConsumerWidget {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF12213A),
+                  color: panelBg,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFF2A3E63)),
+                  border: Border.all(color: panelBorder),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '리스크 점수 ${profile!.score}점 / 24점',
-                      style: const TextStyle(
-                        color: Color(0xFFEAF1FF),
+                      style: TextStyle(
+                        color: panelTitle,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                     const SizedBox(height: 3),
                     Text(
                       '권장 운용 힌트: ${profile!.targetAllocationHint}',
-                      style: const TextStyle(
-                        color: Color(0xFFABC0E3),
+                      style: TextStyle(
+                        color: panelHint,
                         fontSize: 12,
                       ),
                     ),
@@ -179,8 +190,8 @@ class _InvestmentProfileCard extends ConsumerWidget {
                       const SizedBox(height: 3),
                       Text(
                         '최근 진단: ${dateFmt.format(updatedAt)}',
-                        style: const TextStyle(
-                          color: Color(0xFF8EA0C1),
+                        style: TextStyle(
+                          color: panelSubHint,
                           fontSize: 11,
                         ),
                       ),
@@ -247,6 +258,11 @@ class _InvestmentProfileSurveyPageState
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final infoBg = isDark ? const Color(0xFF12213A) : const Color(0xFFEFF5FF);
+    final infoBorder =
+        isDark ? const Color(0xFF2A3E63) : const Color(0xFFC6D8F3);
+    final infoText = isDark ? const Color(0xFFD8E4FF) : const Color(0xFF213852);
     final allAnswered =
         _riskQuestions.every((question) => _answers.containsKey(question.id));
     final preview = allAnswered ? _evaluateRiskProfile(_answers) : null;
@@ -261,14 +277,14 @@ class _InvestmentProfileSurveyPageState
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: const Color(0xFF12213A),
+              color: infoBg,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF2A3E63)),
+              border: Border.all(color: infoBorder),
             ),
-            child: const Text(
+            child: Text(
               '표준 성향 진단 기준(투자기간, 손실 감내, 유동성, 투자경험)을 바탕으로 분류해요.\n'
               '마지막 구간에 초고위험형(리스크 매드맥스형)을 추가해서 선택 폭을 넓혔어요.',
-              style: TextStyle(color: Color(0xFFD8E4FF), height: 1.35),
+              style: TextStyle(color: infoText, height: 1.35),
             ),
           ),
           const SizedBox(height: 12),
@@ -320,6 +336,20 @@ class _QuestionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleText =
+        isDark ? const Color(0xFFF3F6FF) : const Color(0xFF132231);
+    final guideText =
+        isDark ? const Color(0xFF9FB1CF) : const Color(0xFF385571);
+    final optionBg = isDark ? const Color(0xFF12213A) : const Color(0xFFF2F7FF);
+    final optionBorder =
+        isDark ? const Color(0xFF2A3E63) : const Color(0xFFC9D9F0);
+    final optionTitle =
+        isDark ? const Color(0xFFEAF1FF) : const Color(0xFF1C3558);
+    final optionDetail =
+        isDark ? const Color(0xFFA9BDE1) : const Color(0xFF3E5F84);
+    final unselectedRadio =
+        isDark ? const Color(0xFF7E90B2) : const Color(0xFF6C84A7);
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
@@ -329,15 +359,15 @@ class _QuestionCard extends StatelessWidget {
           children: [
             Text(
               question.title,
-              style: const TextStyle(
-                color: Color(0xFFF3F6FF),
+              style: TextStyle(
+                color: titleText,
                 fontWeight: FontWeight.w900,
               ),
             ),
             const SizedBox(height: 3),
             Text(
               question.guide,
-              style: const TextStyle(color: Color(0xFF9FB1CF), fontSize: 12),
+              style: TextStyle(color: guideText, fontSize: 12),
             ),
             const SizedBox(height: 10),
             ...question.options.map((option) {
@@ -351,12 +381,12 @@ class _QuestionCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: selectedScore == option.score
                         ? const Color(0x1E4C8DFF)
-                        : const Color(0xFF12213A),
+                        : optionBg,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: selectedScore == option.score
                           ? const Color(0xFF4C8DFF)
-                          : const Color(0xFF2A3E63),
+                          : optionBorder,
                     ),
                   ),
                   child: Row(
@@ -367,7 +397,7 @@ class _QuestionCard extends StatelessWidget {
                             : Icons.radio_button_unchecked_rounded,
                         color: selectedScore == option.score
                             ? const Color(0xFF7FB1FF)
-                            : const Color(0xFF7E90B2),
+                            : unselectedRadio,
                         size: 18,
                       ),
                       const SizedBox(width: 8),
@@ -377,16 +407,16 @@ class _QuestionCard extends StatelessWidget {
                           children: [
                             Text(
                               option.label,
-                              style: const TextStyle(
-                                color: Color(0xFFEAF1FF),
+                              style: TextStyle(
+                                color: optionTitle,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
                             const SizedBox(height: 2),
                             Text(
                               option.detail,
-                              style: const TextStyle(
-                                color: Color(0xFFA9BDE1),
+                              style: TextStyle(
+                                color: optionDetail,
                                 fontSize: 12,
                               ),
                             ),
@@ -412,12 +442,22 @@ class _PreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final panelBg = isDark ? const Color(0xFF112038) : const Color(0xFFEFF5FF);
+    final panelBorder =
+        isDark ? const Color(0xFF2D456E) : const Color(0xFFC7D9F2);
+    final titleText =
+        isDark ? const Color(0xFFF3F6FF) : const Color(0xFF132231);
+    final bodyText = isDark ? const Color(0xFFD3DCF0) : const Color(0xFF203B59);
+    final hintText = isDark ? const Color(0xFF9FB4D8) : const Color(0xFF3D5E82);
+    final scoreText =
+        isDark ? const Color(0xFF7FD6B2) : const Color(0xFF1E8C63);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF112038),
+        color: panelBg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF2D456E)),
+        border: Border.all(color: panelBorder),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -427,8 +467,8 @@ class _PreviewCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   '예상 결과: ${profile.profileName}',
-                  style: const TextStyle(
-                    color: Color(0xFFF3F6FF),
+                  style: TextStyle(
+                    color: titleText,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -439,17 +479,17 @@ class _PreviewCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             profile.summary,
-            style: const TextStyle(color: Color(0xFFD3DCF0), height: 1.33),
+            style: TextStyle(color: bodyText, height: 1.33),
           ),
           const SizedBox(height: 6),
           Text(
             '권장 운용 힌트: ${profile.targetAllocationHint}',
-            style: const TextStyle(color: Color(0xFF9FB4D8), fontSize: 12),
+            style: TextStyle(color: hintText, fontSize: 12),
           ),
           const SizedBox(height: 2),
           Text(
             '리스크 점수 ${profile.score} / 24',
-            style: const TextStyle(color: Color(0xFF7FD6B2), fontSize: 12),
+            style: TextStyle(color: scoreText, fontSize: 12),
           ),
         ],
       ),
@@ -509,6 +549,12 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleText =
+        isDark ? const Color(0xFFF3F6FF) : const Color(0xFF132231);
+    final valueText =
+        isDark ? const Color(0xFFD8E4FF) : const Color(0xFF253A54);
+    final hintText = isDark ? const Color(0xFF91A0BC) : const Color(0xFF3F5B74);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -517,23 +563,23 @@ class _InfoCard extends StatelessWidget {
           children: [
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w900,
-                color: Color(0xFFF3F6FF),
+                color: titleText,
               ),
             ),
             const SizedBox(height: 6),
             Text(
               value,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w700,
-                color: Color(0xFFD8E4FF),
+                color: valueText,
               ),
             ),
             const SizedBox(height: 4),
             Text(
               hint,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF91A0BC)),
+              style: TextStyle(fontSize: 12, color: hintText),
             ),
           ],
         ),

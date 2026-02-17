@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -67,16 +68,22 @@ class SessionController extends StateNotifier<SessionState> {
     try {
       final api = PlayAssetApiClient();
       final session = await api.login(loginId: loginId, password: password);
-      await _saveSession(session);
       state = SessionState(
         session: session,
         isLoading: false,
         isBootstrapping: false,
         errorMessage: null,
       );
-    } catch (_) {
+
+      // Storage failure should not block current runtime login.
+      try {
+        await _saveSession(session);
+      } catch (_) {
+        // ignore
+      }
+    } catch (error) {
       state = state.copyWith(
-          isLoading: false, errorMessage: '로그인에 실패했어요. 아이디/비밀번호를 다시 확인해 주세요.');
+          isLoading: false, errorMessage: _loginErrorMessage(error));
     }
   }
 
@@ -153,6 +160,23 @@ class SessionController extends StateNotifier<SessionState> {
   Future<void> _clearSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_sessionStorageKey);
+  }
+
+  String _loginErrorMessage(Object error) {
+    if (error is DioException) {
+      final payload = error.response?.data;
+      if (payload is Map<String, dynamic>) {
+        final message = payload['message'];
+        if (message is String && message.trim().isNotEmpty) {
+          return message.trim();
+        }
+      }
+      if (error.type == DioExceptionType.connectionTimeout ||
+          error.type == DioExceptionType.connectionError) {
+        return '서버에 연결할 수 없어요. 서버 상태를 확인해 주세요.';
+      }
+    }
+    return '로그인에 실패했어요. 아이디/비밀번호를 다시 확인해 주세요.';
   }
 }
 

@@ -30,20 +30,18 @@ class AdminTab extends ConsumerWidget {
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 100),
           children: [
-            const Text(
+            Text(
               '관리자 센터',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
             ),
-            const SizedBox(height: 8),
-            const Text(
-              '유료 호출 정책, 권한 그룹, 사용자 권한을 한 곳에서 관리해요.',
-              style: TextStyle(fontSize: 13, color: Color(0xFF8A97B3)),
-            ),
-            const SizedBox(height: 16),
-            const TabBar(
+            const SizedBox(height: 12),
+            TabBar(
               isScrollable: true,
+              labelColor: _adminTitleText(context),
+              unselectedLabelColor: _adminMutedText(context),
+              indicatorColor: _adminPrimaryAccent(context),
               tabs: [
                 Tab(text: '호출 정책'),
                 Tab(text: '권한 그룹'),
@@ -51,9 +49,9 @@ class AdminTab extends ConsumerWidget {
                 Tab(text: '기준정보'),
               ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
             SizedBox(
-              height: 920,
+              height: _tabContentHeight(context),
               child: TabBarView(
                 children: [
                   _PolicyPane(policyAsync: policyAsync),
@@ -212,9 +210,9 @@ class _RuntimeConfigCardState extends ConsumerState<_RuntimeConfigCard> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF101E3E),
+        color: _adminPanelBg(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF2D4F8C)),
+        border: Border.all(color: _adminPanelBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -228,7 +226,10 @@ class _RuntimeConfigCardState extends ConsumerState<_RuntimeConfigCard> {
                 ),
               ),
               if (!editable)
-                const Text('읽기전용', style: TextStyle(color: Color(0xFFFFA3AE))),
+                Text(
+                  '읽기전용',
+                  style: TextStyle(color: _adminDanger(context)),
+                ),
               const SizedBox(width: 8),
               Switch.adaptive(
                 value: _enabled,
@@ -324,9 +325,18 @@ class _PolicyPane extends StatelessWidget {
         if (list.isEmpty) {
           return const _EmptyBox(message: '정책 데이터가 없습니다.');
         }
-        return ListView.builder(
-          itemCount: list.length,
-          itemBuilder: (context, index) => _PolicyCard(policy: list[index]),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 900;
+            if (!wide) {
+              return ListView.builder(
+                itemCount: list.length,
+                itemBuilder: (context, index) =>
+                    _PolicyCard(policy: list[index]),
+              );
+            }
+            return _PolicyTable(policyList: list);
+          },
         );
       },
       loading: () => const _LoadingBox(),
@@ -347,10 +357,18 @@ class _GroupPane extends StatelessWidget {
         if (groups.isEmpty) {
           return const _EmptyBox(message: '권한 그룹 데이터가 없습니다.');
         }
-        return ListView.builder(
-          itemCount: groups.length,
-          itemBuilder: (context, index) =>
-              _GroupPermissionCard(group: groups[index]),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final wide = constraints.maxWidth >= 900;
+            if (!wide) {
+              return ListView.builder(
+                itemCount: groups.length,
+                itemBuilder: (context, index) =>
+                    _GroupPermissionCard(group: groups[index]),
+              );
+            }
+            return _GroupTable(groups: groups);
+          },
         );
       },
       loading: () => const _LoadingBox(),
@@ -373,12 +391,20 @@ class _UserPane extends StatelessWidget {
           if (users.isEmpty) {
             return const _EmptyBox(message: '사용자 데이터가 없습니다.');
           }
-          return ListView.builder(
-            itemCount: users.length,
-            itemBuilder: (context, index) => _UserManageCard(
-              user: users[index],
-              groups: groups,
-            ),
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              final wide = constraints.maxWidth >= 980;
+              if (!wide) {
+                return ListView.builder(
+                  itemCount: users.length,
+                  itemBuilder: (context, index) => _UserManageCard(
+                    user: users[index],
+                    groups: groups,
+                  ),
+                );
+              }
+              return _UserTable(users: users, groups: groups);
+            },
           );
         },
         loading: () => const _LoadingBox(),
@@ -386,6 +412,203 @@ class _UserPane extends StatelessWidget {
       ),
       loading: () => const _LoadingBox(),
       error: (e, _) => _ErrorBox(message: '권한 그룹 조회 실패: $e'),
+    );
+  }
+}
+
+class _PolicyTable extends StatelessWidget {
+  const _PolicyTable({required this.policyList});
+
+  final List<PaidServicePolicyData> policyList;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 980),
+          child: DataTable(
+            headingRowHeight: 40,
+            dataRowMinHeight: 48,
+            dataRowMaxHeight: 56,
+            columns: const [
+              DataColumn(label: Text('서비스')),
+              DataColumn(label: Text('키')),
+              DataColumn(label: Text('일일한도')),
+              DataColumn(label: Text('사용/잔여')),
+              DataColumn(label: Text('상태')),
+              DataColumn(label: Text('관리')),
+            ],
+            rows: policyList.map((policy) {
+              return DataRow(
+                cells: [
+                  DataCell(Text(policy.displayName)),
+                  DataCell(Text(policy.serviceKey)),
+                  DataCell(Text('${policy.dailyLimit}')),
+                  DataCell(
+                      Text('${policy.usedToday} / ${policy.remainingToday}')),
+                  DataCell(Text(policy.enabled ? '활성' : '비활성')),
+                  DataCell(
+                    TextButton(
+                      onPressed: () => _openEditor(context, policy),
+                      child: const Text('편집'),
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openEditor(BuildContext context, PaidServicePolicyData policy) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
+          child: SingleChildScrollView(
+            child: _PolicyCard(policy: policy),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GroupTable extends StatelessWidget {
+  const _GroupTable({required this.groups});
+
+  final List<AdminGroupData> groups;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 980),
+          child: DataTable(
+            headingRowHeight: 40,
+            dataRowMinHeight: 50,
+            dataRowMaxHeight: 60,
+            columns: const [
+              DataColumn(label: Text('그룹키')),
+              DataColumn(label: Text('그룹명')),
+              DataColumn(label: Text('멤버')),
+              DataColumn(label: Text('권한')),
+              DataColumn(label: Text('상태')),
+              DataColumn(label: Text('관리')),
+            ],
+            rows: groups.map((group) {
+              return DataRow(
+                cells: [
+                  DataCell(Text(group.groupKey)),
+                  DataCell(Text(group.groupName)),
+                  DataCell(Text('${group.memberCount}')),
+                  DataCell(Text(group.permissions.join(', '))),
+                  DataCell(Text(group.enabled ? '활성' : '비활성')),
+                  DataCell(
+                    TextButton(
+                      onPressed: () => _openEditor(context, group),
+                      child: const Text('편집'),
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openEditor(BuildContext context, AdminGroupData group) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
+          child: SingleChildScrollView(
+            child: _GroupPermissionCard(group: group),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _UserTable extends StatelessWidget {
+  const _UserTable({
+    required this.users,
+    required this.groups,
+  });
+
+  final List<AdminUserData> users;
+  final List<AdminGroupData> groups;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minWidth: 1080),
+          child: DataTable(
+            headingRowHeight: 40,
+            dataRowMinHeight: 52,
+            dataRowMaxHeight: 62,
+            columns: const [
+              DataColumn(label: Text('로그인ID')),
+              DataColumn(label: Text('이름')),
+              DataColumn(label: Text('상태')),
+              DataColumn(label: Text('그룹')),
+              DataColumn(label: Text('역할')),
+              DataColumn(label: Text('관리')),
+            ],
+            rows: users.map((user) {
+              return DataRow(
+                cells: [
+                  DataCell(Text(user.loginId)),
+                  DataCell(Text(user.displayName)),
+                  DataCell(Text(user.status)),
+                  DataCell(Text(user.groupName ?? '-')),
+                  DataCell(Text(user.roles.join(', '))),
+                  DataCell(
+                    TextButton(
+                      onPressed: () => _openEditor(context, user),
+                      child: const Text('편집'),
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _openEditor(BuildContext context, AdminUserData user) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 18),
+          child: SingleChildScrollView(
+            child: _UserManageCard(user: user, groups: groups),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -465,9 +688,9 @@ class _PolicyCardState extends ConsumerState<_PolicyCard> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF101E3E),
+        color: _adminPanelBg(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF2D4F8C)),
+        border: Border.all(color: _adminPanelBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -490,7 +713,7 @@ class _PolicyCardState extends ConsumerState<_PolicyCard> {
           ),
           Text(
             policy.serviceKey,
-            style: const TextStyle(color: Color(0xFF98A9CF), fontSize: 12),
+            style: TextStyle(color: _adminMutedText(context), fontSize: 12),
           ),
           const SizedBox(height: 10),
           Row(
@@ -516,7 +739,7 @@ class _PolicyCardState extends ConsumerState<_PolicyCard> {
           const SizedBox(height: 8),
           Text(
             '오늘 사용 ${policy.usedToday}건 / 잔여 ${policy.remainingToday}건',
-            style: const TextStyle(color: Color(0xFFB8C9F1), fontSize: 12),
+            style: TextStyle(color: _adminBodyText(context), fontSize: 12),
           ),
         ],
       ),
@@ -589,9 +812,9 @@ class _GroupPermissionCardState extends ConsumerState<_GroupPermissionCard> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF101E3E),
+        color: _adminPanelBg(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF2D4F8C)),
+        border: Border.all(color: _adminPanelBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -608,8 +831,8 @@ class _GroupPermissionCardState extends ConsumerState<_GroupPermissionCard> {
                 group.enabled ? '활성' : '비활성',
                 style: TextStyle(
                   color: group.enabled
-                      ? const Color(0xFF8CF0CA)
-                      : const Color(0xFFFFA3AE),
+                      ? _adminSuccess(context)
+                      : _adminDanger(context),
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -618,13 +841,13 @@ class _GroupPermissionCardState extends ConsumerState<_GroupPermissionCard> {
           const SizedBox(height: 4),
           Text(
             '${group.groupKey} · 멤버 ${group.memberCount}명',
-            style: const TextStyle(color: Color(0xFF98A9CF), fontSize: 12),
+            style: TextStyle(color: _adminMutedText(context), fontSize: 12),
           ),
           if (group.groupDesc.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
               group.groupDesc,
-              style: const TextStyle(color: Color(0xFFBED0F0), fontSize: 12),
+              style: TextStyle(color: _adminBodyText(context), fontSize: 12),
             ),
           ],
           const SizedBox(height: 10),
@@ -757,9 +980,9 @@ class _UserManageCardState extends ConsumerState<_UserManageCard> {
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFF101E3E),
+        color: _adminPanelBg(context),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFF2D4F8C)),
+        border: Border.all(color: _adminPanelBorder(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -769,7 +992,7 @@ class _UserManageCardState extends ConsumerState<_UserManageCard> {
           const SizedBox(height: 4),
           Text(
             '${user.loginId} · ${user.status}',
-            style: const TextStyle(color: Color(0xFF98A9CF), fontSize: 12),
+            style: TextStyle(color: _adminMutedText(context), fontSize: 12),
           ),
           const SizedBox(height: 10),
           DropdownButtonFormField<int>(
@@ -854,14 +1077,18 @@ class _ErrorBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = _isDarkMode(context);
+    final bg = isDark ? const Color(0x22FF6A86) : const Color(0x1FF74F6A);
+    final border = isDark ? const Color(0x66FF6A86) : const Color(0x66F15B74);
+    final text = isDark ? const Color(0xFFFFD8E0) : const Color(0xFF992B3F);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0x22FF6A86),
+        color: bg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0x66FF6A86)),
+        border: Border.all(color: border),
       ),
-      child: Text(message, style: const TextStyle(color: Color(0xFFFFD8E0))),
+      child: Text(message, style: TextStyle(color: text)),
     );
   }
 }
@@ -873,14 +1100,51 @@ class _EmptyBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = _isDarkMode(context);
+    final bg = isDark ? const Color(0x141C2A4F) : const Color(0xFFEAF3FF);
+    final border = isDark ? const Color(0x333A5A92) : const Color(0xFFCDDDF7);
+    final text = isDark ? const Color(0xFFA5B4D7) : const Color(0xFF4A6386);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0x141C2A4F),
+        color: bg,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0x333A5A92)),
+        border: Border.all(color: border),
       ),
-      child: Text(message, style: const TextStyle(color: Color(0xFFA5B4D7))),
+      child: Text(message, style: TextStyle(color: text)),
     );
   }
+}
+
+bool _isDarkMode(BuildContext context) =>
+    Theme.of(context).brightness == Brightness.dark;
+
+Color _adminPanelBg(BuildContext context) =>
+    _isDarkMode(context) ? const Color(0xFF101E3E) : const Color(0xFFF7FBFF);
+
+Color _adminPanelBorder(BuildContext context) =>
+    _isDarkMode(context) ? const Color(0xFF2D4F8C) : const Color(0xFFCADBF7);
+
+Color _adminTitleText(BuildContext context) =>
+    _isDarkMode(context) ? const Color(0xFFF3F6FF) : const Color(0xFF12243F);
+
+Color _adminBodyText(BuildContext context) =>
+    _isDarkMode(context) ? const Color(0xFFC7D7F3) : const Color(0xFF223A58);
+
+Color _adminMutedText(BuildContext context) =>
+    _isDarkMode(context) ? const Color(0xFF8FA6CF) : const Color(0xFF355575);
+
+Color _adminPrimaryAccent(BuildContext context) =>
+    _isDarkMode(context) ? const Color(0xFF5CA8FF) : const Color(0xFF3F77C7);
+
+Color _adminSuccess(BuildContext context) =>
+    _isDarkMode(context) ? const Color(0xFF8CF0CA) : const Color(0xFF168A60);
+
+Color _adminDanger(BuildContext context) =>
+    _isDarkMode(context) ? const Color(0xFFFFA3AE) : const Color(0xFFB9354A);
+
+double _tabContentHeight(BuildContext context) {
+  final screen = MediaQuery.of(context).size.height;
+  final candidate = screen - 250;
+  return candidate.clamp(520.0, 1200.0);
 }
