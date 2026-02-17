@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Row;
@@ -195,7 +196,7 @@ public class TransactionImportService {
         if (cell == null) {
             return null;
         }
-        if (DateUtil.isCellDateFormatted(cell)) {
+        if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
             Instant instant = cell.getDateCellValue().toInstant();
             return LocalDateTime.ofInstant(instant, ZoneId.systemDefault()).withNano(0).toString();
         }
