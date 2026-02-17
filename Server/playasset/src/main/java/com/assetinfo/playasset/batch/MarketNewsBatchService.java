@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,7 +29,12 @@ import com.assetinfo.playasset.api.v1.service.RuntimeConfigService;
 import com.assetinfo.playasset.batch.provider.FxRateProvider;
 import com.assetinfo.playasset.batch.provider.MarketDataProvider;
 import com.assetinfo.playasset.batch.provider.MarketDataProvider.QuoteSnapshot;
+import com.assetinfo.playasset.batch.provider.NewsDataProvider;
+import com.assetinfo.playasset.batch.provider.NewsDataProvider.AssetRef;
+import com.assetinfo.playasset.batch.provider.NewsDataProvider.NewsItem;
 import com.assetinfo.playasset.config.ExternalProviderProperties;
+
+import reactor.core.publisher.Flux;
 
 @Component
 public class MarketNewsBatchService {
@@ -40,6 +46,7 @@ public class MarketNewsBatchService {
     private final PlatformCacheEvictService cacheEvictService;
     private final PaidServiceQuotaService quotaService;
     private final List<MarketDataProvider> marketDataProviders;
+    private final List<NewsDataProvider> newsDataProviders;
     private final FxRateProvider fxRateProvider;
     private final RuntimeConfigService runtimeConfigService;
 
@@ -49,6 +56,7 @@ public class MarketNewsBatchService {
             PlatformCacheEvictService cacheEvictService,
             PaidServiceQuotaService quotaService,
             List<MarketDataProvider> marketDataProviders,
+            List<NewsDataProvider> newsDataProviders,
             FxRateProvider fxRateProvider,
             RuntimeConfigService runtimeConfigService) {
         this.repository = repository;
@@ -56,6 +64,7 @@ public class MarketNewsBatchService {
         this.cacheEvictService = cacheEvictService;
         this.quotaService = quotaService;
         this.marketDataProviders = marketDataProviders;
+        this.newsDataProviders = newsDataProviders;
         this.fxRateProvider = fxRateProvider;
         this.runtimeConfigService = runtimeConfigService;
     }
@@ -186,37 +195,70 @@ public class MarketNewsBatchService {
 
     private void refreshNewsSentimentInternal(boolean manualTrigger) {
         LocalDateTime startedAt = LocalDateTime.now();
-        String sourceKey = providerProperties.getNews().getApiKey().isBlank() ? "SYNTHETIC" : "EXTERNAL_API";
+        String sourceKey = "SYNTHETIC";
         try {
             quotaService.consume(PaidServiceKeys.NEWS_BATCH_REFRESH);
-            List<Long> assetIds = repository.findAllAssetIds();
-            if (assetIds.isEmpty()) {
+            List<AssetMarketSyncTarget> assets = repository.findAllAssetSyncTargets();
+            if (assets.isEmpty()) {
                 return;
             }
 
-            long sourceId = repository.ensureInternalNewsSource();
+            Map<String, Long> assetIdBySymbol = new LinkedHashMap<>();
+            List<AssetRef> refs = assets.stream()
+                    .peek(a -> assetIdBySymbol.put(a.symbol().trim().toUpperCase(), a.assetId()))
+                    .map(a -> new AssetRef(a.assetId(), a.symbol(), a.assetName(), a.market(), a.currency()))
+                    .toList();
+
+            int maxPerProvider = Math.max(3, Math.min(30, refs.size()));
+            List<NewsDataProvider> activeProviders = newsDataProviders.stream()
+                    .filter(NewsDataProvider::isEnabled)
+                    .toList();
+
+            List<ProviderNews> externalNews = Flux.merge(
+                    activeProviders.stream()
+                            .map(provider -> provider.fetchLatest(refs, maxPerProvider)
+                                    .map(item -> new ProviderNews(provider, item))
+                                    .onErrorResume(ex -> Flux.empty()))
+                            .toList())
+                    .take(Math.max(8, maxPerProvider * Math.max(1, activeProviders.size())))
+                    .collectList()
+                    .blockOptional()
+                    .orElse(List.of());
+
             int generated = 0;
-            int maxItems = Math.min(3, assetIds.size());
-            for (int i = 0; i < maxItems; i++) {
-                long assetId = assetIds.get(ThreadLocalRandom.current().nextInt(assetIds.size()));
-                String assetName = repository.findAssetName(assetId);
-                String[] labels = { "POSITIVE", "NEUTRAL", "NEGATIVE" };
-                String sentimentLabel = labels[ThreadLocalRandom.current().nextInt(labels.length)];
-                BigDecimal score = (switch (sentimentLabel) {
-                    case "POSITIVE" -> BigDecimal.valueOf(ThreadLocalRandom.current().nextDouble(0.65, 0.95));
-                    case "NEGATIVE" -> BigDecimal.valueOf(ThreadLocalRandom.current().nextDouble(0.65, 0.95));
-                    default -> BigDecimal.valueOf(ThreadLocalRandom.current().nextDouble(0.45, 0.62));
-                }).setScale(5, RoundingMode.HALF_UP);
+            if (!externalNews.isEmpty()) {
+                Set<String> providerKeys = new java.util.LinkedHashSet<>();
+                for (ProviderNews row : externalNews) {
+                    NewsDataProvider provider = row.provider();
+                    NewsItem item = row.item();
+                    long sourceId = repository.ensureNewsSource(provider.sourceName(), provider.sourceSiteUrl());
+                    providerKeys.add(provider.providerKey());
+                    for (String symbol : item.matchedSymbols()) {
+                        Long assetId = assetIdBySymbol.get(symbol.trim().toUpperCase());
+                        if (assetId == null) {
+                            continue;
+                        }
+                        repository.upsertNewsArticleWithMention(
+                                sourceId,
+                                assetId,
+                                item.title(),
+                                item.body(),
+                                item.language(),
+                                item.publishedAt(),
+                                item.sentimentLabel(),
+                                item.sentimentScore(),
+                                item.externalId(),
+                                "news-v1",
+                                BigDecimal.valueOf(0.8));
+                        generated++;
+                    }
+                }
+                sourceKey = "EXTERNAL_" + String.join("+", providerKeys);
+            }
 
-                String titleTemplate = batchMessage("news.synthetic.title.template", "%s 관련 수급/모멘텀 업데이트");
-                String bodyTemplate = batchMessage("news.synthetic.body.template",
-                        "외부 뉴스 API 키가 없어 내부 샘플 데이터로 생성했어요.");
-                String title = titleTemplate.formatted(assetName);
-                String body = bodyTemplate;
-                String externalId = "sim-" + assetId + "-" + System.currentTimeMillis() + "-" + i;
-
-                repository.insertSyntheticNews(sourceId, assetId, title, body, sentimentLabel, score, externalId);
-                generated++;
+            if (generated == 0) {
+                generated = generateSyntheticNews(assets);
+                sourceKey = "SYNTHETIC";
             }
 
             LocalDateTime finishedAt = LocalDateTime.now();
@@ -246,11 +288,46 @@ public class MarketNewsBatchService {
         }
     }
 
+    private int generateSyntheticNews(List<AssetMarketSyncTarget> assets) {
+        List<Long> assetIds = assets.stream().map(AssetMarketSyncTarget::assetId).toList();
+        if (assetIds.isEmpty()) {
+            return 0;
+        }
+        long sourceId = repository.ensureInternalNewsSource();
+        int generated = 0;
+        int maxItems = Math.min(3, assetIds.size());
+        for (int i = 0; i < maxItems; i++) {
+            long assetId = assetIds.get(ThreadLocalRandom.current().nextInt(assetIds.size()));
+            String assetName = repository.findAssetName(assetId);
+            String[] labels = { "POSITIVE", "NEUTRAL", "NEGATIVE" };
+            String sentimentLabel = labels[ThreadLocalRandom.current().nextInt(labels.length)];
+            BigDecimal score = (switch (sentimentLabel) {
+                case "POSITIVE" -> BigDecimal.valueOf(ThreadLocalRandom.current().nextDouble(0.65, 0.95));
+                case "NEGATIVE" -> BigDecimal.valueOf(ThreadLocalRandom.current().nextDouble(0.65, 0.95));
+                default -> BigDecimal.valueOf(ThreadLocalRandom.current().nextDouble(0.45, 0.62));
+            }).setScale(5, RoundingMode.HALF_UP);
+
+            String titleTemplate = batchMessage("news.synthetic.title.template", "%s 관련 수급/모멘텀 업데이트");
+            String bodyTemplate = batchMessage("news.synthetic.body.template",
+                    "외부 뉴스 API 키가 없어 내부 샘플 데이터로 생성했어요.");
+            String title = titleTemplate.formatted(assetName);
+            String body = bodyTemplate;
+            String externalId = "sim-" + assetId + "-" + System.currentTimeMillis() + "-" + i;
+
+            repository.insertSyntheticNews(sourceId, assetId, title, body, sentimentLabel, score, externalId);
+            generated++;
+        }
+        return generated;
+    }
+
     private String batchMessage(String key, String defaultValue) {
         return runtimeConfigService.getString(RuntimeConfigService.GROUP_MARKET_BATCH_MESSAGE, key, defaultValue);
     }
 
     private BigDecimal toKrw(BigDecimal value, BigDecimal fxRate) {
         return value.multiply(fxRate).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private record ProviderNews(NewsDataProvider provider, NewsItem item) {
     }
 }

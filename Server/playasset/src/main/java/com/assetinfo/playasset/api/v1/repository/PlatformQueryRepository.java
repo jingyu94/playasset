@@ -842,7 +842,7 @@ public class PlatformQueryRepository {
 
     public List<AssetMarketSyncTarget> findAllAssetSyncTargets() {
         return jdbcTemplate.query("""
-                SELECT asset_id, symbol, market, currency
+                SELECT asset_id, symbol, name, market, currency
                 FROM assets
                 WHERE is_active = 1
                 ORDER BY
@@ -851,6 +851,7 @@ public class PlatformQueryRepository {
                 """, (rs, rowNum) -> new AssetMarketSyncTarget(
                 rs.getLong("asset_id"),
                 rs.getString("symbol"),
+                rs.getString("name"),
                 rs.getString("market"),
                 rs.getString("currency")));
     }
@@ -957,24 +958,56 @@ public class PlatformQueryRepository {
                 Long.class);
     }
 
+    public long ensureNewsSource(String name, String siteUrl) {
+        jdbcTemplate.update("""
+                INSERT INTO news_sources(name, site_url, is_active)
+                VALUES (?, ?, 1)
+                ON DUPLICATE KEY UPDATE
+                    site_url = VALUES(site_url),
+                    is_active = 1
+                """, name, siteUrl);
+        return jdbcTemplate.queryForObject(
+                "SELECT source_id FROM news_sources WHERE name = ? LIMIT 1",
+                Long.class,
+                name);
+    }
+
     public void insertSyntheticNews(long sourceId, long assetId, String title, String body, String sentimentLabel,
             BigDecimal sentimentScore, String externalId) {
+        upsertNewsArticleWithMention(sourceId, assetId, title, body, "ko", LocalDateTime.now(), sentimentLabel,
+                sentimentScore, externalId, "sim-v1", BigDecimal.valueOf(0.75));
+    }
+
+    public void upsertNewsArticleWithMention(
+            long sourceId,
+            long assetId,
+            String title,
+            String body,
+            String language,
+            LocalDateTime publishedAt,
+            String sentimentLabel,
+            BigDecimal sentimentScore,
+            String externalId,
+            String modelVersion,
+            BigDecimal confidenceScore) {
         KeyHolder keyHolder = new GeneratedKeyHolder();
         jdbcTemplate.update(connection -> {
             PreparedStatement ps = connection.prepareStatement("""
                     INSERT INTO news_articles
                     (source_id, external_id, title, body, language, published_at)
-                    VALUES (?, ?, ?, ?, 'ko', ?)
+                    VALUES (?, ?, ?, ?, ?, ?)
                     ON DUPLICATE KEY UPDATE
                         title = VALUES(title),
                         body = VALUES(body),
+                        language = VALUES(language),
                         published_at = VALUES(published_at)
                     """, new String[] { "article_id" });
             ps.setLong(1, sourceId);
             ps.setString(2, externalId);
             ps.setString(3, title);
             ps.setString(4, body);
-            ps.setTimestamp(5, Timestamp.valueOf(LocalDateTime.now()));
+            ps.setString(5, language);
+            ps.setTimestamp(6, Timestamp.valueOf(publishedAt));
             return ps;
         }, keyHolder);
 
@@ -1000,17 +1033,17 @@ public class PlatformQueryRepository {
 
         jdbcTemplate.update("""
                 INSERT INTO news_asset_mentions(article_id, asset_id, confidence_score)
-                VALUES (?, ?, 0.7500)
+                VALUES (?, ?, ?)
                 ON DUPLICATE KEY UPDATE confidence_score = VALUES(confidence_score)
-                """, articleId, assetId);
+                """, articleId, assetId, confidenceScore);
 
         jdbcTemplate.update("""
                 INSERT INTO news_sentiment_scores(article_id, model_version, sentiment_label, sentiment_score)
-                VALUES (?, 'sim-v1', ?, ?)
+                VALUES (?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
                     sentiment_label = VALUES(sentiment_label),
                     sentiment_score = VALUES(sentiment_score)
-                """, articleId, sentimentLabel, sentimentScore);
+                """, articleId, modelVersion, sentimentLabel, sentimentScore);
     }
 
     public String findAssetName(long assetId) {
@@ -1102,6 +1135,7 @@ public class PlatformQueryRepository {
     public record AssetMarketSyncTarget(
             long assetId,
             String symbol,
+            String assetName,
             String market,
             String currency) {
     }
