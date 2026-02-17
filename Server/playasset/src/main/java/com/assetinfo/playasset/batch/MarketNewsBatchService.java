@@ -5,6 +5,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -203,11 +204,9 @@ public class MarketNewsBatchService {
                 return;
             }
 
+            List<Long> prioritizedAssetIds = repository.findPrioritizedNewsAssetIds(30);
             Map<String, Long> assetIdBySymbol = new LinkedHashMap<>();
-            List<AssetRef> refs = assets.stream()
-                    .peek(a -> assetIdBySymbol.put(a.symbol().trim().toUpperCase(), a.assetId()))
-                    .map(a -> new AssetRef(a.assetId(), a.symbol(), a.assetName(), a.market(), a.currency()))
-                    .toList();
+            List<AssetRef> refs = buildNewsAssetRefs(assets, prioritizedAssetIds, assetIdBySymbol);
 
             int maxPerProvider = Math.max(3, Math.min(30, refs.size()));
             List<NewsDataProvider> activeProviders = newsDataProviders.stream()
@@ -257,7 +256,7 @@ public class MarketNewsBatchService {
             }
 
             if (generated == 0) {
-                generated = generateSyntheticNews(assets);
+                generated = generateSyntheticNews(assets, prioritizedAssetIds);
                 sourceKey = "SYNTHETIC";
             }
 
@@ -272,7 +271,13 @@ public class MarketNewsBatchService {
                     startedAt,
                     finishedAt);
             cacheEvictService.evictNewsDrivenCaches();
-            log.info("news batch finished: source={}, generated={}, manual={}", sourceKey, generated, manualTrigger);
+            log.info(
+                    "news batch finished: source={}, generated={}, providers={}, prioritizedAssets={}, manual={}",
+                    sourceKey,
+                    generated,
+                    activeProviders.stream().map(NewsDataProvider::providerKey).toList(),
+                    prioritizedAssetIds.size(),
+                    manualTrigger);
         } catch (Exception ex) {
             LocalDateTime finishedAt = LocalDateTime.now();
             repository.insertIngestionJob(
@@ -288,8 +293,10 @@ public class MarketNewsBatchService {
         }
     }
 
-    private int generateSyntheticNews(List<AssetMarketSyncTarget> assets) {
-        List<Long> assetIds = assets.stream().map(AssetMarketSyncTarget::assetId).toList();
+    private int generateSyntheticNews(List<AssetMarketSyncTarget> assets, List<Long> prioritizedAssetIds) {
+        List<Long> fallbackAssetIds = assets.stream().map(AssetMarketSyncTarget::assetId).toList();
+        List<Long> assetIds = prioritizedAssetIds == null || prioritizedAssetIds.isEmpty() ? fallbackAssetIds
+                : prioritizedAssetIds;
         if (assetIds.isEmpty()) {
             return 0;
         }
@@ -318,6 +325,46 @@ public class MarketNewsBatchService {
             generated++;
         }
         return generated;
+    }
+
+    private List<AssetRef> buildNewsAssetRefs(
+            List<AssetMarketSyncTarget> assets,
+            List<Long> prioritizedAssetIds,
+            Map<String, Long> assetIdBySymbol) {
+        Map<Long, AssetMarketSyncTarget> byId = assets.stream()
+                .collect(Collectors.toMap(AssetMarketSyncTarget::assetId, a -> a, (a, b) -> a, LinkedHashMap::new));
+        List<AssetRef> ordered = new ArrayList<>();
+        Set<Long> used = new HashSet<>();
+        for (Long assetId : prioritizedAssetIds) {
+            AssetMarketSyncTarget asset = byId.get(assetId);
+            if (asset == null || used.contains(asset.assetId())) {
+                continue;
+            }
+            used.add(asset.assetId());
+            ordered.add(toAssetRef(asset, assetIdBySymbol));
+        }
+        for (AssetMarketSyncTarget asset : assets) {
+            if (ordered.size() >= 30) {
+                break;
+            }
+            if (used.contains(asset.assetId())) {
+                continue;
+            }
+            used.add(asset.assetId());
+            ordered.add(toAssetRef(asset, assetIdBySymbol));
+        }
+        return ordered;
+    }
+
+    private AssetRef toAssetRef(AssetMarketSyncTarget asset, Map<String, Long> assetIdBySymbol) {
+        String normalized = asset.symbol().trim().toUpperCase();
+        assetIdBySymbol.put(normalized, asset.assetId());
+        return new AssetRef(
+                asset.assetId(),
+                asset.symbol(),
+                asset.assetName(),
+                asset.market(),
+                asset.currency());
     }
 
     private String batchMessage(String key, String defaultValue) {

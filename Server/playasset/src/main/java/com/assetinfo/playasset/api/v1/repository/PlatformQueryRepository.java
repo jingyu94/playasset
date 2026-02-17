@@ -840,6 +840,30 @@ public class PlatformQueryRepository {
                 (rs, rowNum) -> rs.getLong("asset_id"));
     }
 
+    public List<Long> findPrioritizedNewsAssetIds(int limit) {
+        int safeLimit = Math.max(1, limit);
+        return jdbcTemplate.query("""
+                SELECT asset_id
+                FROM (
+                    SELECT p.asset_id, MAX(p.updated_at) AS touched_at
+                    FROM portfolio_positions p
+                    JOIN portfolio_accounts pa ON pa.account_id = p.account_id
+                    JOIN portfolios pf ON pf.portfolio_id = pa.portfolio_id
+                    GROUP BY p.asset_id
+
+                    UNION ALL
+
+                    SELECT wi.asset_id, MAX(wi.created_at) AS touched_at
+                    FROM watchlist_items wi
+                    JOIN watchlists w ON w.watchlist_id = wi.watchlist_id
+                    GROUP BY wi.asset_id
+                ) x
+                GROUP BY asset_id
+                ORDER BY MAX(touched_at) DESC
+                LIMIT ?
+                """, (rs, rowNum) -> rs.getLong("asset_id"), safeLimit);
+    }
+
     public List<AssetMarketSyncTarget> findAllAssetSyncTargets() {
         return jdbcTemplate.query("""
                 SELECT asset_id, symbol, name, market, currency
